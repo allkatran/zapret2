@@ -16,9 +16,9 @@ download latest releast, unpack, cd to it's directory
 make BUILDMODE=static CFLAGS="-Os"
 make install
 
-5) cd to %ZAPRET_BASE%/nfq
+5) cd to %ZAPRET_BASE%/nfq2
 
-cd C:/Users/user/Downloads/zapret2/nfq
+cd C:/Users/user/Downloads/zapret2/nfq2
 
 6) Compile nfqws2
 
