@@ -257,7 +257,7 @@ function synack(ctx, desync)
 end
 
 
--- nfqws1 : "--wssize"
+-- nfqws1 : "--wsize"
 -- arg : wsize=N . tcp window size
 -- arg : scale=N . tcp option scale factor
 function wsize(ctx, desync)
