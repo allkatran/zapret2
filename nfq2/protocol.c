@@ -3,6 +3,9 @@
 #include "protocol.h"
 #include "helpers.h"
 #include "params.h"
+#include "crypto/sha.h"
+#include "crypto/aes-gcm.h"
+#include "crypto/aes-ctr.h"
 
 #include <string.h>
 #include <ctype.h>
@@ -26,7 +29,7 @@ static bool FindNLD(const uint8_t *dom, size_t dlen, int level, const uint8_t **
 	return true;
 }
 
-static const char *l7proto_name[] = {"all","unknown","http","tls","quic","wireguard","dht","discord","stun","xmpp","dns"};
+static const char *l7proto_name[] = {"all","unknown","http","tls","quic","wireguard","dht","discord","stun","xmpp","dns","mtproto"};
 const char *l7proto_str(t_l7proto l7)
 {
 	if (l7>=L7_LAST) return NULL;
@@ -46,7 +49,9 @@ static const char *l7payload_name[] = {
  "all","unknown","empty","http_req","http_reply","tls_client_hello","tls_server_hello","quic_initial",
  "wireguard_initiation","wireguard_response","wireguard_cookie","wireguard_keepalive","wireguard_data",
  "dht","discord_ip_discovery","stun_binding_req",
- "xmpp_stream", "xmpp_starttls", "xmpp_proceed", "xmpp_features", "dns_query", "dns_response"};
+ "xmpp_stream", "xmpp_starttls", "xmpp_proceed", "xmpp_features",
+ "dns_query", "dns_response",
+ "mtproto_initial"};
 t_l7payload l7payload_from_name(const char *name)
 {
 	int idx = str_index(l7payload_name,sizeof(l7payload_name)/sizeof(*l7payload_name),name);
@@ -1384,4 +1389,18 @@ bool IsStunBindingRequest(const uint8_t *data, size_t len)
 		(data[3]&0b11)==0 && // length must be a multiple of 4
 		ntohl(*(uint32_t*)(&data[4]))==0x2112A442 && // magic cookie
 		ntohs(*(uint16_t*)(&data[2]))==len-20;
+}
+bool IsMTProto(const uint8_t *data, size_t len)
+{
+	if (len>=64)
+	{
+		aes_context ctx;
+		uint8_t dcopy[64];
+
+		aes_init_keygen_tables();
+		memcpy(dcopy,data,sizeof(dcopy));
+		aes_setkey(&ctx, true, data+8, 32);
+		aes_ctr_xcrypt_buffer(&ctx, data+40, dcopy, sizeof(dcopy));
+		return !memcmp(dcopy+56,"\xEF\xEF\xEF\xEF",4);
+	}
 }

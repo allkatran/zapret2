@@ -1162,7 +1162,6 @@ static uint8_t dpi_desync_tcp_packet_play(unsigned int replay_piece, unsigned in
 		}
 
 		process_retrans_fail(ctrack, IPPROTO_TCP, (struct sockaddr*)&src);
-
 		if (IsHttp(rdata_payload, rlen_payload))
 		{
 			DLOG("packet contains HTTP request\n");
@@ -1251,6 +1250,16 @@ static uint8_t dpi_desync_tcp_packet_play(unsigned int replay_piece, unsigned in
 					}
 					return VERDICT_DROP;
 				}
+			}
+		}
+		else if (ctrack && (ctrack->seq_last - ctrack->seq0)==1 && IsMTProto(dis->data_payload, dis->len_payload))
+		{
+			// mtproto detection requires aes. react only on the first tcp data packet. do not detect if ctrack unavailable.
+			l7payload = L7P_MTPROTO_INITIAL;
+			if (l7proto == L7_UNKNOWN)
+			{
+				l7proto = L7_MTPROTO;
+				if (ctrack->l7proto == L7_UNKNOWN) ctrack->l7proto = l7proto;
 			}
 		}
 		else

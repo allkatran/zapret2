@@ -3,6 +3,10 @@
 #include "lua.h"
 #include "params.h"
 #include "helpers.h"
+#include "crypto/sha.h"
+#include "crypto/aes-gcm.h"
+#include "crypto/aes-ctr.h"
+
 
 static void lua_check_argc(lua_State *L, const char *where, int argc)
 {
