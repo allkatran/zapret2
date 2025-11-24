@@ -1,4 +1,5 @@
 #include <time.h>
+#include <fcntl.h>
 
 #include "lua.h"
 #include "params.h"
@@ -2326,6 +2327,20 @@ static bool lua_desync_functions_exist()
 				return false;
 			}
 			lua_pop(params.L,1);
+		}
+	}
+	return true;
+}
+
+bool lua_test_init_script_files(void)
+{
+	struct str_list *str;
+	LIST_FOREACH(str, &params.lua_init_scripts, next)
+	{
+		if (str->str[0]=='@' && !file_open_test(str->str+1, O_RDONLY))
+		{
+			DLOG_ERR("LUA file '%s' not accessible\n",str->str+1);
+			return false;
 		}
 	}
 	return true;

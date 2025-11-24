@@ -303,6 +303,8 @@ static int nfq_main(void)
 	print_id();
 	if (params.droproot && !test_list_files())
 		goto err;
+	if (!lua_test_init_script_files())
+		goto err;
 
 	sec_harden();
 
@@ -460,6 +462,8 @@ static int dvt_main(void)
 		goto exiterr;
 	print_id();
 	if (params.droproot && !test_list_files())
+		goto exiterr;
+	if (!lua_test_init_script_files())
 		goto exiterr;
 
 	if (!lua_init())
@@ -2437,6 +2441,8 @@ int main(int argc, char **argv)
 	}
 
 	if (!test_list_files())
+		exit_clean(1);
+	if (!lua_test_init_script_files())
 		exit_clean(1);
 
 	if (!LoadAllHostLists())

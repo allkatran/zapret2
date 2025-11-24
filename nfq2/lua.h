@@ -28,6 +28,7 @@
 #define LUA_STACK_GUARD_RETURN(L,N) LUA_STACK_GUARD_LEAVE(L,N); return N;
 
 
+bool lua_test_init_script_files(void);
 bool lua_init(void);
 void lua_shutdown(void);
 void lua_dlog_error(void);

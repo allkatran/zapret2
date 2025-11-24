@@ -417,26 +417,9 @@ bool parse_hex_str(const char *s, uint8_t *pbuf, size_t *size)
 	}
 	return true;
 }
-
-void fill_pattern(uint8_t *buf,size_t bufsize,const void *pattern,size_t patsize,size_t offset)
+char hex_digit(uint8_t v)
 {
-	size_t size;
-
-	if (offset%=patsize)
-	{
-		size = patsize-offset;
-		size = bufsize>size ? size : bufsize;
-		memcpy(buf,pattern+offset,size);
-		buf += size;
-		bufsize -= size;
-	}
-	while (bufsize)
-	{
-		size = bufsize>patsize ? patsize : bufsize;
-		memcpy(buf,pattern,size);
-		buf += size;
-		bufsize -= size;
-	}
+	return v<=9 ? '0'+v : (v<=0xF) ? v+'A'-0xA : '?';
 }
 
 int fprint_localtime(FILE *F)

@@ -65,7 +65,7 @@ uint64_t pntoh64(const uint8_t *p);
 void phton64(uint8_t *p, uint64_t v);
 
 bool parse_hex_str(const char *s, uint8_t *pbuf, size_t *size);
-void fill_pattern(uint8_t *buf,size_t bufsize,const void *pattern,size_t patsize,size_t offset);
+char hex_digit(uint8_t v);
 
 int fprint_localtime(FILE *F);
 
