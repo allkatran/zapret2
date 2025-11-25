@@ -37,9 +37,6 @@ SYS_exec_with_loader,
 #ifdef SYS_osf_execve
 SYS_osf_execve,
 #endif
-#ifdef SYS_uselib
-SYS_uselib,
-#endif
 #ifdef SYS_chmod
 SYS_chmod,
 #endif

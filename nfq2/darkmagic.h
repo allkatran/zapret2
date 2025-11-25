@@ -89,11 +89,13 @@ bool tcp_syn_segment(const struct tcphdr *tcphdr);
 bool ip_has_df(const struct ip *ip);
 
 
+bool make_writeable_dir();
 bool ensure_file_access(const char *filename);
-
 #ifdef __CYGWIN__
 extern uint32_t w_win32_error;
 
+bool ensure_dir_access(const char *filename);
+bool prepare_low_appdata();
 bool win_sandbox(void);
 bool win_dark_init(const struct str_list_head *ssid_filter, const struct str_list_head *nlm_filter);
 bool win_dark_deinit(void);
@@ -104,6 +106,7 @@ bool windivert_init(const char *filter);
 bool windivert_recv(uint8_t *packet, size_t *len, WINDIVERT_ADDRESS *wa);
 bool windivert_send(const uint8_t *packet, size_t len, const WINDIVERT_ADDRESS *wa);
 #else
+#define ensure_dir_access(dir) ensure_file_access(dir)
 // should pre-do it if dropping privileges. otherwise its not necessary
 bool rawsend_preinit(bool bind_fix4, bool bind_fix6);
 #endif

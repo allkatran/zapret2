@@ -1402,6 +1402,7 @@ static void exithelp(void)
 		" --nlm-list[=all]\t\t\t\t\t; list Network List Manager (NLM) networks. connected only or all.\n"
 #endif
 		"\nDESYNC ENGINE INIT:\n"
+		" --writeable[=<dir_name>]\t\t\t\t; create writeable dir for LUA engine and pass it in WRITEABLE env variable (only one dir possible)\n"
 		" --blob=<item_name>:[+ofs]@<filename>|0xHEX\t\t; load blob to LUA var <item_name>\n"
 		" --lua-init=@<filename>|<lua_text>\t\t\t; load LUA program from a file or string. if multiple parameters present order of execution is preserved.\n"
 		" --lua-gc=<int>\t\t\t\t\t\t; forced garbage collection every N sec. default %u sec. triggers only when a packet arrives. 0 = disable.\n"
@@ -1540,6 +1541,8 @@ enum opt_indices {
 	IDX_SOCKARG,
 #endif
 
+	IDX_WRITEABLE,
+
 	IDX_BLOB,
 	IDX_LUA_INIT,
 	IDX_LUA_GC,
@@ -1620,6 +1623,7 @@ static const struct option long_options[] = {
 #elif defined(SO_USER_COOKIE)
 	[IDX_SOCKARG] = {"sockarg", required_argument, 0, 0},
 #endif
+	[IDX_WRITEABLE] = {"writeable", optional_argument, 0, 0},
 	[IDX_BLOB] = {"blob", required_argument, 0, 0},
 	[IDX_LUA_INIT] = {"lua-init", required_argument, 0, 0},
 	[IDX_LUA_GC] = {"lua-gc", required_argument, 0, 0},
@@ -1678,6 +1682,7 @@ int main(int argc, char **argv)
 	set_env_exedir(argv[0]);
 
 #ifdef __CYGWIN__
+	prepare_low_appdata();
 	if (service_run(argc, argv))
 	{
 		// we were running as service. now exit.
@@ -1692,11 +1697,10 @@ int main(int argc, char **argv)
 	uint64_t payload_type=0;
 	struct packet_range range_in = PACKET_RANGE_NEVER, range_out = PACKET_RANGE_ALWAYS;
 #ifdef __CYGWIN__
-	char wf_save_file[256];
+	char wf_save_file[256]="";
 	bool wf_ipv4 = true, wf_ipv6 = true, wf_filter_lan = true, wf_tcp_empty = false;
 	unsigned int IfIdx = 0, SubIfIdx = 0;
 	unsigned int hash_wf_tcp_in = 0, hash_wf_udp_in = 0, hash_wf_tcp_out = 0, hash_wf_udp_out = 0, hash_wf_raw = 0, hash_wf_raw_part = 0, hash_ssid_filter = 0, hash_nlm_filter = 0;
-        *wf_save_file = 0;
 #endif
 
 	srandom(time(NULL));
@@ -1966,6 +1970,17 @@ int main(int argc, char **argv)
 			}
 			break;
 #endif
+		case IDX_WRITEABLE:
+			params.writeable_dir_enable = true;
+			if (optarg)
+			{
+				strncpy(params.writeable_dir, optarg, sizeof(params.writeable_dir));
+				params.writeable_dir[sizeof(params.writeable_dir) - 1] = 0;
+			}
+			else
+				*params.writeable_dir = 0;
+			break;
+
 		case IDX_BLOB:
 			load_blob_to_collection(optarg, &params.blobs, MAX_BLOB_SIZE, BLOB_EXTRA_BYTES);
 			break;
@@ -2410,6 +2425,15 @@ int main(int argc, char **argv)
 
 	DLOG_CONDUP("we have %d user defined desync profile(s) and default low priority profile 0\n", desync_profile_count);
 
+	if (params.writeable_dir_enable)
+	{
+		if (!make_writeable_dir())
+		{
+			DLOG_ERR("could not make writeable dir for LUA\n");
+			exit_clean(1);
+		}
+		DLOG("LUA writeable dir : %s\n", getenv("WRITEABLE"));
+	}
 #ifndef __CYGWIN__
 	if (params.droproot)
 #endif
@@ -2434,7 +2458,7 @@ int main(int argc, char **argv)
 #endif
 		{
 			if (dp->hostlist_auto && ensure_file_access(dp->hostlist_auto->filename))
-				DLOG_ERR("could not chown %s. auto hostlist file may not be writable after privilege drop\n", dp->hostlist_auto->filename);
+				DLOG_ERR("could not make '%s' accessible. auto hostlist file may not be writable after privilege drop\n", dp->hostlist_auto->filename);
 
 		}
 		LuaDesyncDebug(dp);

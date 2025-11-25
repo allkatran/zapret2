@@ -557,6 +557,8 @@ uint8_t ttl46(const struct ip *ip, const struct ip6_hdr *ip6)
 }
 
 
+
+
 #ifdef __CYGWIN__
 
 uint32_t w_win32_error=0;
@@ -644,7 +646,6 @@ BOOL SetMandatoryLabelFile(LPCSTR lpFileName, DWORD dwMandatoryLabelRID, DWORD d
 		dwFileAttributes = GetFileAttributesW(lpFileNameW);
 		if (dwFileAttributes == INVALID_FILE_ATTRIBUTES) goto err;
 	}
-
 	InitializeSid(label, &label_authority, 1);
 	*GetSidSubAuthority(label, 0) = dwMandatoryLabelRID;
 	if (InitializeAcl(pacl, sizeof(buf_pacl), ACL_REVISION) && AddMandatoryAce(pacl, (dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? ACL_REVISION_DS : ACL_REVISION, dwAceFlags, SYSTEM_MANDATORY_LABEL_NO_WRITE_UP, label))
@@ -692,7 +693,12 @@ bool ensure_file_access(const char *filename)
 {
 	return SetMandatoryLabelFile(filename, SECURITY_MANDATORY_LOW_RID, 0);
 }
-static bool prepare_low_appdata()
+bool ensure_dir_access(const char *dir)
+{
+	return SetMandatoryLabelFile(dir, SECURITY_MANDATORY_LOW_RID, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE);
+}
+
+bool prepare_low_appdata()
 {
 	bool b = false;
 	PWSTR pszPath = NULL;
@@ -707,20 +713,6 @@ static bool prepare_low_appdata()
 			{
 				b = true;
 				setenv("APPDATALOW", buf, 1);
-				memcpy(buf+l-1,"/zapret2",9);
-				setenv("WRITEABLE", buf, 1);
-				mkdir(buf,0755);
-
-				l = wcslen(pszPath);
-				PWSTR pszPath2 = malloc((l+9)*sizeof(WCHAR));
-				if (pszPath2)
-				{
-					memcpy(pszPath2,pszPath,l*sizeof(WCHAR));
-					memcpy(pszPath2+l,L"\\zapret2",9*sizeof(WCHAR));
-					// ensure it's low and everything created inside is also low
-					SetMandatoryLabelFileW(pszPath2, SECURITY_MANDATORY_LOW_RID, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE);
-					free(pszPath2);
-				}
 			}
 			free(buf);
 		}
@@ -728,6 +720,7 @@ static bool prepare_low_appdata()
 	}
 	return b;
 }
+
 
 #define WINDIVERT_DEVICE_NAME "WinDivert"
 static bool b_isandbox_set = false;
@@ -742,7 +735,6 @@ bool win_sandbox(void)
 		// set low mandatory label on windivert device to allow administrators with low label access the driver
 		if (logical_net_filter_present() && !SetMandatoryLabelFile("\\\\.\\" WINDIVERT_DEVICE_NAME, SECURITY_MANDATORY_LOW_RID, 0))
 			return FALSE;
-		prepare_low_appdata();
 		if (!LowMandatoryLevel())
 			return false;
 		// for LUA code to find where to store files
@@ -1895,4 +1887,55 @@ bool set_socket_buffers(int fd, int rcvbuf, int sndbuf)
 	}
 	dbgprint_socket_buffers(fd);
 	return true;
+}
+
+bool make_writeable_dir()
+{
+	char wdir[PATH_MAX], *wrdir;
+	if (*params.writeable_dir)
+		wrdir = params.writeable_dir;
+	else
+	{
+#ifdef __CYGWIN__
+		char *env = getenv("APPDATALOW");
+		if (!env) return false;
+#else
+		char *env = getenv("TMPDIR");
+		if (!env) env = "/tmp";
+#endif
+		snprintf(wdir,sizeof(wdir),"%s/zapret2",env);
+		wrdir = wdir;
+	}
+	if (mkdir(wrdir,0755) && errno!=EEXIST)
+		return false;
+
+	bool b = false;
+#ifdef __CYGWIN__
+	size_t l = cygwin_conv_path(CCP_POSIX_TO_WIN_W | CCP_ABSOLUTE, wrdir, NULL, 0);
+	WCHAR *wwrdir = (WCHAR*)malloc(l);
+	if (wwrdir)
+	{
+		if (!cygwin_conv_path(CCP_POSIX_TO_WIN_W | CCP_ABSOLUTE, wrdir, wwrdir, l))
+			b = SetMandatoryLabelFileW(wwrdir, SECURITY_MANDATORY_LOW_RID, OBJECT_INHERIT_ACE | CONTAINER_INHERIT_ACE);
+		free(wwrdir);
+	}
+#else
+	if (ensure_dir_access(wrdir))
+		b = true;
+	else
+	{
+		// could not chown. may be still accessible ?
+		char testfile[PATH_MAX];
+		snprintf(testfile,sizeof(testfile),"%s/test_XXXXXX",wrdir);
+		int fd = mkstemp(testfile);
+		if (fd>0)
+		{
+			close(fd);
+			unlink(testfile);
+			b = true;
+		}
+	}
+#endif
+	if (b) setenv("WRITEABLE",wrdir,1);
+	return b;
 }

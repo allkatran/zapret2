@@ -161,6 +161,8 @@ struct params_s
 	uint64_t reasm_payload_disable;
 
 	struct str_list_head lua_init_scripts;
+	bool writeable_dir_enable;
+	char writeable_dir[PATH_MAX];
 
 	int lua_gc;
 	lua_State *L;
