@@ -787,7 +787,7 @@ static uint8_t desync(
 							}
 							lua_pushlightuserdata(params.L, &ctx);
 							lua_rawgeti(params.L, LUA_REGISTRYINDEX, ref_arg);
-							lua_pushf_args(&func->args);
+							lua_pushf_args(&func->args, -1);
 							lua_pushf_str("func", func->func);
 							lua_pushf_int("func_n", func_n);
 							lua_pushf_str("func_instance", instance);

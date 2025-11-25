@@ -57,6 +57,9 @@ void lua_pushf_lud(const char *field, void *p);
 void lua_pushf_table(const char *field);
 void lua_pushi_table(lua_Integer idx);
 
+void lua_push_blob(int idx_desync, const char *blob);
+void lua_pushf_blob(int idx_desync, const char *field, const char *blob);
+
 void lua_pushf_tcphdr_options(const struct tcphdr *tcp, size_t len);
 void lua_pushf_tcphdr(const struct tcphdr *tcp, size_t len);
 void lua_pushf_udphdr(const struct udphdr *udp, size_t len);
@@ -65,7 +68,7 @@ void lua_pushf_ip6hdr(const struct ip6_hdr *ip6, size_t len);
 void lua_push_dissect(const struct dissect *dis);
 void lua_pushf_dissect(const struct dissect *dis);
 void lua_pushf_ctrack(const t_ctrack *ctrack);
-void lua_pushf_args(const struct ptr_list_head *args);
+void lua_pushf_args(const struct ptr_list_head *args, int idx_desync);
 void lua_pushf_global(const char *field, const char *global);
 
 bool lua_reconstruct_ip6hdr(int idx, struct ip6_hdr *ip6, size_t *len, uint8_t last_proto, bool preserve_next);
