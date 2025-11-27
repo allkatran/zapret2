@@ -448,7 +448,7 @@ end
 -- ip6_autottl=delta,min-max - set ip.ip_ttl to auto discovered ttl
 
 -- ip6_hopbyhop[=hex] - add hopbyhop ipv6 header with optional data. data size must be 6+N*8. all zero by default.
--- ip6_hopbyhop2 - add 2 hopbyhop ipv6 headers with optional data. data size must be 6+N*8. all zero by default.
+-- ip6_hopbyhop2[=hex] - add second hopbyhop ipv6 header with optional data. data size must be 6+N*8. all zero by default.
 -- ip6_destopt[=hex] - add destopt ipv6 header with optional data. data size must be 6+N*8. all zero by default.
 -- ip6_routing[=hex] - add routing ipv6 header with optional data. data size must be 6+N*8. all zero by default.
 -- ip6_ah[=hex] - add authentication ipv6 header with optional data. data size must be 6+N*4. 0000 + 4 random bytes by default.
@@ -541,12 +541,12 @@ function apply_fooling(desync, dis, fooling_options)
 	end
 	if dis.ip6 then
 		local bin
-		if fooling_options.ip6_hopbyhop_x2 then
-			bin = prepare_bin(fooling_options.ip6_hopbyhop2_x2,"\x00\x00\x00\x00\x00\x00")
-			insert_ip6_exthdr(dis.ip6,nil,IPPROTO_HOPOPTS,bin)
-			insert_ip6_exthdr(dis.ip6,nil,IPPROTO_HOPOPTS,bin)
-		elseif fooling_options.ip6_hopbyhop then
+		if fooling_options.ip6_hopbyhop then
 			bin = prepare_bin(fooling_options.ip6_hopbyhop,"\x00\x00\x00\x00\x00\x00")
+			insert_ip6_exthdr(dis.ip6,nil,IPPROTO_HOPOPTS,bin)
+		end
+		if fooling_options.ip6_hopbyhop2 then
+			bin = prepare_bin(fooling_options.ip6_hopbyhop2,"\x00\x00\x00\x00\x00\x00")
 			insert_ip6_exthdr(dis.ip6,nil,IPPROTO_HOPOPTS,bin)
 		end
 		-- for possible unfragmentable part
