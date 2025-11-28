@@ -198,6 +198,9 @@ function blob(desync, name, def)
 	end
 	return blob
 end
+function blob_or_def(desync, name, def)
+	return name and blob(desync,name,def) or def
+end
 
 -- repeat pattern as needed to extract part of it with any length
 -- pat="12345" len=10 offset=4 => "4512345123"
