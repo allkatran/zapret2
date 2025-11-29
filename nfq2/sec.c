@@ -66,14 +66,6 @@ SYS_symlinkat,
 SYS_link,
 #endif
 SYS_linkat,
-SYS_truncate,
-#ifdef SYS_truncate64
-SYS_truncate64,
-#endif
-SYS_ftruncate,
-#ifdef SYS_ftruncate64
-SYS_ftruncate64,
-#endif
 #ifdef SYS_mknod
 SYS_mknod,
 #endif
