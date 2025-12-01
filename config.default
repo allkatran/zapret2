@@ -2,7 +2,7 @@
 # change values here
 
 # can help in case /tmp has not enough space
-#TMPDIR=/opt/zapret/tmp
+#TMPDIR=/opt/zapret2/tmp
 
 # redefine user for zapret daemons. required on Keenetic
 #WS_USER=nobody
@@ -20,7 +20,7 @@ SET_MAXELEM=522288
 # too large hashsize will waste lots of RAM
 IPSET_OPT="hashsize 262144 maxelem $SET_MAXELEM"
 # dynamically generate additional ip. $1 = ipset/nfset/table name
-#IPSET_HOOK="/etc/zapret.ipset.hook"
+#IPSET_HOOK="/etc/zapret2.ipset.hook"
 
 # options for ip2net. "-4" or "-6" auto added by ipset create script
 IP2NET_OPT4="--prefix-length=22-30 --v4-threshold=3/4"
@@ -77,7 +77,7 @@ NFQWS2_UDP_PKT_IN=0
 NFQWS2_OPT="
 --filter-tcp=80 --payload=http_req --lua-desync=fake:blob=fake_default_http:tcp_md5 --lua-desync=multisplit:pos=method+2 <HOSTLIST> --new
 --filter-tcp=443 --payload=tls_client_hello --lua-desync=fake:blob=fake_default_tls:tcp_md5:tcp_seq=-10000 --lua-desync=multidisorder:pos=1,midsld <HOSTLIST> --new
---filter-udp=443 --payload=quic_initial --lua-desync=fake:blob=fake_default_quic:repeats=6 <HOSTLIST_NOAUTO> --new
+--filter-udp=443 --payload=quic_initial --lua-desync=fake:blob=fake_default_quic:repeats=6 <HOSTLIST_NOAUTO>
 "
 
 # none,ipset,hostlist,autohostlist
@@ -86,15 +86,18 @@ MODE_FILTER=none
 # donttouch,none,software,hardware
 FLOWOFFLOAD=donttouch
 
+# openwrt: specify networks to be treated as LAN. default is "lan"
+#OPENWRT_LAN="lan lan2 lan3"
 # openwrt: specify networks to be treated as WAN. default wans are interfaces with default route
 #OPENWRT_WAN4="wan vpn"
 #OPENWRT_WAN6="wan6 vpn6"
 
 # for routers based on desktop linux and macos. has no effect in openwrt.
-# optionally CHOOSE WAN/WAN6 NETWORK INTERFACES
+# CHOOSE LAN and optinally WAN/WAN6 NETWORK INTERFACES
 # or leave them commented if its not router
 # it's possible to specify multiple interfaces like this : IFACE_WAN="eth0 eth1 eth2"
 # if IFACE_WAN6 is not defined it take the value of IFACE_WAN
+#IFACE_LAN=eth0
 #IFACE_WAN=eth1
 #IFACE_WAN6="ipsec0 wireguard0 he_net"
 
@@ -102,10 +105,10 @@ FLOWOFFLOAD=donttouch
 # not applicable to openwrt with firewall3+iptables
 INIT_APPLY_FW=1
 # firewall apply hooks
-#INIT_FW_PRE_UP_HOOK="/etc/firewall.zapret.hook.pre_up"
-#INIT_FW_POST_UP_HOOK="/etc/firewall.zapret.hook.post_up"
-#INIT_FW_PRE_DOWN_HOOK="/etc/firewall.zapret.hook.pre_down"
-#INIT_FW_POST_DOWN_HOOK="/etc/firewall.zapret.hook.post_down"
+#INIT_FW_PRE_UP_HOOK="/etc/firewall.zapret2.hook.pre_up"
+#INIT_FW_POST_UP_HOOK="/etc/firewall.zapret2.hook.post_up"
+#INIT_FW_PRE_DOWN_HOOK="/etc/firewall.zapret2.hook.pre_down"
+#INIT_FW_POST_DOWN_HOOK="/etc/firewall.zapret2.hook.post_down"
 
 # do not work with ipv4
 #DISABLE_IPV4=1
