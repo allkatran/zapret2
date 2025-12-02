@@ -30,7 +30,7 @@ select_test_method()
 		TEST=bash
 	elif exists zsh && [ "$UNAME" != CYGWIN ] ; then
 		TEST=zsh
-	elif [ "$UNAME" != Darwin -a "$UNAME" != CYGWIN ]; then
+	elif [ "$UNAME" != CYGWIN ]; then
 		if exists hexdump and exists dd; then
 			# macos does not use ELF
 			TEST=elf
@@ -64,12 +64,6 @@ select_test_method()
 
 }
 
-disable_antivirus()
-{
-	# $1 - dir
-	[ "$UNAME" = Darwin ] && find "$1" -maxdepth 1 -type f -perm +111 -exec xattr -d com.apple.quarantine {} \; 2>/dev/null
-}
-
 check_dir()
 {
 	local dir="$BINDIR/$1"
@@ -77,7 +71,6 @@ check_dir()
 	local out
 	if [ -f "$exe" ]; then
 		if [ -x "$exe" ]; then
-			disable_antivirus "$dir"
 			case $TEST in
 				bash)
 					out=$(echo 0.0.0.0 | bash -c "\"$exe"\" 2>/dev/null)
@@ -143,8 +136,7 @@ if [ ! -d "$BINDIR" ] || ! dir_is_not_empty "$BINDIR" ]; then
 			echo "to compile on other systems : make"
 			;;
 		Darwin)
-			echo "you need to download release from github or build binaries from source"
-			echo "to compile : make mac"
+			echo "macos is not supported"
 			;;
 		FreeBSD)
 			echo "you need to download release from github or build binaries from source"
@@ -167,9 +159,6 @@ case $UNAME in
 	Linux)
 		ARCHLIST="my linux-x86_64 linux-x86 linux-arm64 linux-arm linux-mips64 linux-mipsel linux-mips linux-lexra linux-ppc"
 		PKTWS=nfqws2
-		;;
-	Darwin)
-		ARCHLIST="my mac64"
 		;;
 	FreeBSD)
 		ARCHLIST="my freebsd-x86_64"
