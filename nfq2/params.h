@@ -6,6 +6,7 @@
 #include "desync.h"
 #include "protocol.h"
 #include "helpers.h"
+#include "sec.h"
 
 #include <sys/param.h>
 #include <sys/types.h>
@@ -91,6 +92,9 @@ struct desync_profile_list {
 };
 LIST_HEAD(desync_profile_list_head, desync_profile_list);
 struct desync_profile_list *dp_list_add(struct desync_profile_list_head *head);
+void dp_list_move(struct desync_profile_list_head *target, struct desync_profile_list *dpl);
+bool dp_list_copy(struct desync_profile *to, const struct desync_profile *from);
+struct desync_profile_list *dp_list_search_name(struct desync_profile_list_head *head, const char *name);
 void dp_entry_destroy(struct desync_profile_list *entry);
 void dp_list_destroy(struct desync_profile_list_head *head);
 bool dp_list_have_autohostlist(struct desync_profile_list_head *head);
@@ -121,7 +125,7 @@ struct params_s
 	bool bind_fix4,bind_fix6;
 	uint32_t desync_fwmark; // unused in BSD
 	
-	struct desync_profile_list_head desync_profiles;
+	struct desync_profile_list_head desync_profiles, desync_templates;
 	
 #ifdef __CYGWIN__
 	struct str_list_head ssid_filter,nlm_filter;
@@ -172,6 +176,8 @@ struct params_s
 
 extern struct params_s params;
 extern const char *progname;
+
+void init_params(struct params_s *params);
 #if !defined( __OpenBSD__) && !defined(__ANDROID__)
 void cleanup_args(struct params_s *params);
 #endif

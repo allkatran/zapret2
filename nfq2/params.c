@@ -322,7 +322,7 @@ void hexdump_limited_dlog(const uint8_t *data, size_t size, size_t limit)
 	}
 }
 
-void dp_init(struct desync_profile *dp)
+void dp_init_dynamic(struct desync_profile *dp)
 {
 	LIST_INIT(&dp->hl_collection);
 	LIST_INIT(&dp->hl_collection_exclude);
@@ -331,30 +331,18 @@ void dp_init(struct desync_profile *dp)
 	LIST_INIT(&dp->pf_tcp);
 	LIST_INIT(&dp->pf_udp);
 	LIST_INIT(&dp->lua_desync);
+#ifdef HAS_FILTER_SSID
+	LIST_INIT(&dp->filter_ssid);
+#endif
+}
+void dp_init(struct desync_profile *dp)
+{
+	dp_init_dynamic(dp);
 
 	dp->hostlist_auto_fail_threshold = HOSTLIST_AUTO_FAIL_THRESHOLD_DEFAULT;
 	dp->hostlist_auto_fail_time = HOSTLIST_AUTO_FAIL_TIME_DEFAULT;
 	dp->hostlist_auto_retrans_threshold = HOSTLIST_AUTO_RETRANS_THRESHOLD_DEFAULT;
 	dp->filter_ipv4 = dp->filter_ipv6 = true;
-}
-struct desync_profile_list *dp_list_add(struct desync_profile_list_head *head)
-{
-	struct desync_profile_list *entry = calloc(1,sizeof(struct desync_profile_list));
-	if (!entry) return NULL;
-
-	dp_init(&entry->dp);
-
-	// add to the tail
-	struct desync_profile_list *dpn,*dpl=LIST_FIRST(&params.desync_profiles);
-	if (dpl)
-	{
-		while ((dpn=LIST_NEXT(dpl,next))) dpl = dpn;
-		LIST_INSERT_AFTER(dpl, entry, next);
-	}
-	else
-		LIST_INSERT_HEAD(&params.desync_profiles, entry, next);
-
-	return entry;
 }
 static void dp_clear_dynamic(struct desync_profile *dp)
 {
@@ -390,6 +378,66 @@ void dp_list_destroy(struct desync_profile_list_head *head)
 		dp_entry_destroy(entry);
 	}
 }
+
+static struct desync_profile_list *desync_profile_entry_alloc()
+{
+	struct desync_profile_list *entry = calloc(1,sizeof(struct desync_profile_list));
+	if (entry) dp_init(&entry->dp);
+	return entry;
+}
+struct desync_profile_list *dp_list_add(struct desync_profile_list_head *head)
+{
+	struct desync_profile_list *entry = desync_profile_entry_alloc();
+	if (!entry) return false;
+
+	struct desync_profile_list *tail, *item;
+	LIST_TAIL(head, tail, item);
+	LIST_INSERT_TAIL(head, tail, entry, next);
+
+	return entry;
+}
+bool dp_list_copy(struct desync_profile *to, const struct desync_profile *from)
+{
+	// clear everything in target
+	dp_clear(to);
+	// first copy all simple type values
+	*to = *from;
+	// prepare empty dynamic structures
+	dp_init_dynamic(to);
+	// copy dynamic structures
+	to->name = strdup(from->name);
+	if (
+		!to->name ||
+#ifdef HAS_FILTER_SSID
+		!strlist_copy(&to->filter_ssid, &from->filter_ssid) ||
+#endif
+		!funclist_copy(&to->lua_desync, &from->lua_desync) ||
+		!ipset_collection_copy(&to->ips_collection, &from->ips_collection) ||
+		!ipset_collection_copy(&to->ips_collection_exclude, &from->ips_collection_exclude) ||
+		!hostlist_collection_copy(&to->hl_collection, &from->hl_collection) ||
+		!hostlist_collection_copy(&to->hl_collection_exclude, &from->hl_collection_exclude))
+	{
+		return false;
+	}
+	return true;
+}
+void dp_list_move(struct desync_profile_list_head *target, struct desync_profile_list *dpl)
+{
+	struct desync_profile_list *tail, *item;
+	LIST_TAIL(target, tail, item);
+	LIST_REMOVE(dpl, next);
+	LIST_INSERT_TAIL(target, tail, dpl, next);
+}
+struct desync_profile_list *dp_list_search_name(struct desync_profile_list_head *head, const char *name)
+{
+	struct desync_profile_list *dpl;
+	if (name)
+		LIST_FOREACH(dpl, head, next)
+			if (dpl->dp.name && !strcmp(dpl->dp.name, name))
+				return dpl;
+	return NULL;
+}
+
 bool dp_list_have_autohostlist(struct desync_profile_list_head *head)
 {
 	struct desync_profile_list *dpl;
@@ -428,6 +476,7 @@ void cleanup_params(struct params_s *params)
 
 	ConntrackPoolDestroy(&params->conntrack);
 	dp_list_destroy(&params->desync_profiles);
+	dp_list_destroy(&params->desync_templates);
 	hostlist_files_destroy(&params->hostlists);
 	ipset_files_destroy(&params->ipsets);
 	ipcacheDestroy(&params->ipcache);
@@ -440,4 +489,41 @@ void cleanup_params(struct params_s *params)
 #else
 	free(params->user); params->user=NULL;
 #endif
+}
+
+void init_params(struct params_s *params)
+{
+	memset(params, 0, sizeof(*params));
+
+#ifdef __linux__
+	params->qnum = -1;
+#elif defined(BSD)
+	params->port = 0;
+#endif
+	params->desync_fwmark = DPI_DESYNC_FWMARK_DEFAULT;
+	params->ctrack_t_syn = CTRACK_T_SYN;
+	params->ctrack_t_est = CTRACK_T_EST;
+	params->ctrack_t_fin = CTRACK_T_FIN;
+	params->ctrack_t_udp = CTRACK_T_UDP;
+	params->ipcache_lifetime = IPCACHE_LIFETIME;
+	params->lua_gc = LUA_GC_INTERVAL;
+
+	LIST_INIT(&params->hostlists);
+	LIST_INIT(&params->ipsets);
+	LIST_INIT(&params->blobs);
+	LIST_INIT(&params->lua_init_scripts);
+
+#ifdef __CYGWIN__
+	LIST_INIT(&params->ssid_filter);
+	LIST_INIT(&params->nlm_filter);
+	LIST_INIT(&params->wf_raw_part);
+#else
+	if (can_drop_root())
+	{
+		params->uid = params->gid[0] = 0x7FFFFFFF; // default uid:gid
+		params->gid_count = 1;
+		params->droproot = true;
+	}
+#endif
+
 }

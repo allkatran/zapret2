@@ -155,20 +155,33 @@ bool strlist_add(struct str_list_head *head, const char *str)
 	LIST_INSERT_HEAD(head, entry, next);
 	return true;
 }
+static struct str_list *strlist_entry_copy(const struct str_list *entry)
+{
+	return strlist_entry_alloc(entry->str);
+}
+bool strlist_copy(struct str_list_head *to, const struct str_list_head *from)
+{
+	struct str_list *tail, *item, *entry;
+
+	LIST_TAIL(to, tail, item);
+	LIST_FOREACH(item, from, next)
+	{
+		if (!(entry = strlist_entry_copy(item))) return false;
+		LIST_INSERT_TAIL(to, tail, entry, next);
+		tail = tail ? LIST_NEXT(tail, next) : LIST_FIRST(to);
+	}
+	return true;
+}
+
 bool strlist_add_tail(struct str_list_head *head, const char *str)
 {
 	struct str_list *entry = strlist_entry_alloc(str);
 	if (!entry) return false;
 
-	// add to the tail
-	struct str_list *strn,*strl=LIST_FIRST(head);
-	if (strl)
-	{
-		while ((strn=LIST_NEXT(strl,next))) strl = strn;
-		LIST_INSERT_AFTER(strl, entry, next);
-	}
-	else
-		LIST_INSERT_HEAD(head, entry, next);
+	struct str_list *tail, *item;
+	LIST_TAIL(head, tail, item);
+	LIST_INSERT_TAIL(head, tail, entry, next);
+
 	return true;
 }
 static void strlist_entry_destroy(struct str_list *entry)
@@ -200,35 +213,77 @@ bool strlist_search(const struct str_list_head *head, const char *str)
 }
 
 
-static struct ptr_list *ptrlist_entry_alloc()
+static void str2list_entry_destroy(struct str2_list *entry)
 {
-	return (struct ptr_list*)calloc(1,sizeof(struct ptr_list));
+	free(entry->str1);
+	free(entry->str2);
+	free(entry);
+}
+void str2list_destroy(struct str2_list_head *head)
+{
+	struct str2_list *entry;
+	while ((entry = LIST_FIRST(head)))
+	{
+		LIST_REMOVE(entry, next);
+		str2list_entry_destroy(entry);
+	}
+}
+static struct str2_list *str2list_entry_alloc()
+{
+	return (struct str2_list*)calloc(1,sizeof(struct str2_list));
 }
 
-struct ptr_list *ptrlist_add(struct ptr_list_head *head)
+struct str2_list *str2list_add(struct str2_list_head *head)
 {
-	struct ptr_list *entry = ptrlist_entry_alloc();
+	struct str2_list *entry = str2list_entry_alloc();
 	if (!entry) return NULL;
 	LIST_INSERT_HEAD(head, entry, next);
 	return entry;
 }
-static void ptrlist_entry_destroy(struct ptr_list *entry)
+static struct str2_list *str2list_entry_copy(const struct str2_list *entry)
 {
-	free(entry->ptr1);
-	free(entry->ptr2);
+	struct str2_list *e2 = str2list_entry_alloc();
+	if (!e2) return NULL;
+	e2->str1 = strdup(entry->str1);
+	e2->str2 = strdup(entry->str2);
+	if (!e2->str1 || !e2->str2)
+	{
+		str2list_entry_destroy(e2);
+		return false;
+	}
+	return e2;
+}
+bool str2list_copy(struct str2_list_head *to, const struct str2_list_head *from)
+{
+	struct str2_list *tail, *item, *entry;
+
+	LIST_TAIL(to, tail, item);
+	LIST_FOREACH(item, from, next)
+	{
+		if (!(entry = str2list_entry_copy(item))) return false;
+		LIST_INSERT_TAIL(to, tail, entry, next);
+		tail = tail ? LIST_NEXT(tail, next) : LIST_FIRST(to);
+	}
+	return true;
+}
+
+
+
+static void funclist_entry_destroy(struct func_list *entry)
+{
+	free(entry->func);
+	str2list_destroy(&entry->args);
 	free(entry);
 }
-void ptrlist_destroy(struct ptr_list_head *head)
+void funclist_destroy(struct func_list_head *head)
 {
-	struct ptr_list *entry;
+	struct func_list *entry;
 	while ((entry = LIST_FIRST(head)))
 	{
 		LIST_REMOVE(entry, next);
-		ptrlist_entry_destroy(entry);
+		funclist_entry_destroy(entry);
 	}
 }
-
-
 static struct func_list *funclist_entry_alloc(const char *func)
 {
 	struct func_list *entry = malloc(sizeof(struct func_list));
@@ -250,31 +305,38 @@ struct func_list *funclist_add_tail(struct func_list_head *head, const char *fun
 	struct func_list *entry = funclist_entry_alloc(func);
 	if (!entry) return NULL;
 
-	// add to the tail
-	struct func_list *funcn,*funcl=LIST_FIRST(head);
-	if (funcl)
-	{
-		while ((funcn=LIST_NEXT(funcl,next))) funcl = funcn;
-		LIST_INSERT_AFTER(funcl, entry, next);
-	}
-	else
-		LIST_INSERT_HEAD(head, entry, next);
+	struct func_list *tail, *item;
+	LIST_TAIL(head, tail, item);
+	LIST_INSERT_TAIL(head, tail, entry, next);
+
 	return entry;
 }
-static void funclist_entry_destroy(struct func_list *entry)
+static struct func_list *funclist_entry_copy(const struct func_list *entry)
 {
-	free(entry->func);
-	ptrlist_destroy(&entry->args);
-	free(entry);
-}
-void funclist_destroy(struct func_list_head *head)
-{
-	struct func_list *entry;
-	while ((entry = LIST_FIRST(head)))
+	struct func_list *e2 = funclist_entry_alloc(entry->func);
+	if (!e2) return NULL;
+	e2->payload_type = entry->payload_type;
+	e2->range_in = entry->range_in;
+	e2->range_out = entry->range_out;
+	if (!str2list_copy(&e2->args, &entry->args))
 	{
-		LIST_REMOVE(entry, next);
-		funclist_entry_destroy(entry);
+		funclist_entry_destroy(e2);
+		return false;
 	}
+	return e2;
+}
+bool funclist_copy(struct func_list_head *to, const struct func_list_head *from)
+{
+	struct func_list *tail, *item, *entry;
+
+	LIST_TAIL(to, tail, item);
+	LIST_FOREACH(item, from, next)
+	{
+		if (!(entry = funclist_entry_copy(item))) return false;
+		LIST_INSERT_TAIL(to, tail, entry, next);
+		tail = tail ? LIST_NEXT(tail, next) : LIST_FIRST(to);
+	}
+	return true;
 }
 
 
@@ -333,16 +395,36 @@ void hostlist_files_reset_modtime(struct hostlist_files_head *list)
 		FILE_MOD_RESET(&hfile->mod_sig);
 }
 
-struct hostlist_item *hostlist_collection_add(struct hostlist_collection_head *head, struct hostlist_file *hfile)
+static struct hostlist_item *hostlist_collection_entry_alloc(struct hostlist_file *hfile)
 {
 	struct hostlist_item *entry = malloc(sizeof(struct hostlist_item));
-	if (entry)
-	{
-		entry->hfile = hfile;
-		LIST_INSERT_HEAD(head, entry, next);
-	}
+	if (entry) entry->hfile = hfile;
 	return entry;
 }
+struct hostlist_item *hostlist_collection_add(struct hostlist_collection_head *head, struct hostlist_file *hfile)
+{
+	struct hostlist_item *entry = hostlist_collection_entry_alloc(hfile);
+	if (entry) LIST_INSERT_HEAD(head, entry, next);
+	return entry;
+}
+static struct hostlist_item *hostlist_collection_entry_copy(const struct hostlist_item *entry)
+{
+	return hostlist_collection_entry_alloc(entry->hfile);
+}
+bool hostlist_collection_copy(struct hostlist_collection_head *to, const struct hostlist_collection_head *from)
+{
+	struct hostlist_item *tail, *item, *entry;
+
+	LIST_TAIL(to, tail, item);
+	LIST_FOREACH(item, from, next)
+	{
+		if (!(entry = hostlist_collection_entry_copy(item))) return false;
+		LIST_INSERT_TAIL(to, tail, entry, next);
+		tail = tail ? LIST_NEXT(tail, next) : LIST_FIRST(to);
+	}
+	return true;
+}
+
 void hostlist_collection_destroy(struct hostlist_collection_head *head)
 {
 	struct hostlist_item *entry;
@@ -579,16 +661,36 @@ void ipset_files_reset_modtime(struct ipset_files_head *list)
 		FILE_MOD_RESET(&hfile->mod_sig);
 }
 
-struct ipset_item *ipset_collection_add(struct ipset_collection_head *head, struct ipset_file *hfile)
+static struct ipset_item *ipset_collection_entry_alloc(struct ipset_file *hfile)
 {
 	struct ipset_item *entry = malloc(sizeof(struct ipset_item));
-	if (entry)
-	{
-		entry->hfile = hfile;
-		LIST_INSERT_HEAD(head, entry, next);
-	}
+	if (entry) entry->hfile = hfile;
 	return entry;
 }
+struct ipset_item *ipset_collection_add(struct ipset_collection_head *head, struct ipset_file *hfile)
+{
+	struct ipset_item *entry = ipset_collection_entry_alloc(hfile);
+	if (entry) LIST_INSERT_HEAD(head, entry, next);
+	return entry;
+}
+static struct ipset_item *ipset_collection_entry_copy(const struct ipset_item *entry)
+{
+	return ipset_collection_entry_alloc(entry->hfile);
+}
+bool ipset_collection_copy(struct ipset_collection_head *to, const struct ipset_collection_head *from)
+{
+	struct ipset_item *tail, *item, *entry;
+
+	LIST_TAIL(to, tail, item);
+	LIST_FOREACH(item, from, next)
+	{
+		if (!(entry = ipset_collection_entry_copy(item))) return false;
+		LIST_INSERT_TAIL(to, tail, entry, next);
+		tail = tail ? LIST_NEXT(tail, next) : LIST_FIRST(to);
+	}
+	return true;
+}
+
 void ipset_collection_destroy(struct ipset_collection_head *head)
 {
 	struct ipset_item *entry;
@@ -645,7 +747,7 @@ bool port_filters_in_range(const struct port_filters_head *head, uint16_t port)
 {
 	const struct port_filter_item *item;
 
-	if (!LIST_FIRST(head)) return true;
+	if (LIST_EMPTY(head)) return true;
 	LIST_FOREACH(item, head, next)
 	{
 		if (pf_in_range(port, &item->pf))
@@ -656,7 +758,7 @@ bool port_filters_in_range(const struct port_filters_head *head, uint16_t port)
 bool port_filters_deny_if_empty(struct port_filters_head *head)
 {
 	port_filter pf;
-	if (LIST_FIRST(head)) return true;
+	if (!LIST_EMPTY(head)) return true;
 	return pf_parse("0",&pf) && port_filter_add(head,&pf);
 }
 
@@ -667,15 +769,9 @@ struct blob_item *blob_collection_add(struct blob_collection_head *head)
 	struct blob_item *entry = calloc(1,sizeof(struct blob_item));
 	if (entry)
 	{
-		// insert to the end
-		struct blob_item *itemc,*iteml=LIST_FIRST(head);
-		if (iteml)
-		{
-			while ((itemc=LIST_NEXT(iteml,next))) iteml = itemc;
-			LIST_INSERT_AFTER(iteml, entry, next);
-		}
-		else
-			LIST_INSERT_HEAD(head, entry, next);
+		struct blob_item *tail, *item;
+		LIST_TAIL(head, tail, item);
+		LIST_INSERT_TAIL(head, tail, entry, next);
 	}
 	return entry;
 }
@@ -693,14 +789,9 @@ struct blob_item *blob_collection_add_blob(struct blob_collection_head *head, co
 	entry->size_buf = size+size_reserve;
 
 	// insert to the end
-	struct blob_item *itemc,*iteml=LIST_FIRST(head);
-	if (iteml)
-	{
-		while ((itemc=LIST_NEXT(iteml,next))) iteml = itemc;
-		LIST_INSERT_AFTER(iteml, entry, next);
-	}
-	else
-		LIST_INSERT_HEAD(head, entry, next);
+	struct blob_item *tail, *item;
+	LIST_TAIL(head, tail, item);
+	LIST_INSERT_TAIL(head, tail, entry, next);
 
 	return entry;
 }
@@ -725,7 +816,7 @@ void blob_collection_destroy(struct blob_collection_head *head)
 }
 bool blob_collection_empty(const struct blob_collection_head *head)
 {
-	return !LIST_FIRST(head);
+	return LIST_EMPTY(head);
 }
 struct blob_item *blob_collection_search_name(struct blob_collection_head *head, const char *name)
 {

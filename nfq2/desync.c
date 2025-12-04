@@ -1531,6 +1531,7 @@ static uint8_t dpi_desync_udp_packet_play(
 			t_protocol_probe testers[] = {
 				{L7P_DNS_RESPONSE,L7_DNS,IsDNSResponse,false},
 				{L7P_DHT,L7_DHT,IsDht,false},
+				{L7P_STUN,L7_STUN,IsStunMessage,false},
 				{L7P_WIREGUARD_INITIATION,L7_WIREGUARD,IsWireguardHandshakeInitiation,false},
 				{L7P_WIREGUARD_RESPONSE,L7_WIREGUARD,IsWireguardHandshakeResponse,false},
 				{L7P_WIREGUARD_COOKIE,L7_WIREGUARD,IsWireguardHandshakeCookie,false},
@@ -1682,7 +1683,7 @@ static uint8_t dpi_desync_udp_packet_play(
 
 				t_protocol_probe testers[] = {
 					{L7P_DISCORD_IP_DISCOVERY,L7_DISCORD,IsDiscordIpDiscoveryRequest,false},
-					{L7P_STUN_BINDING_REQ,L7_STUN,IsStunBindingRequest,false},
+					{L7P_STUN,L7_STUN,IsStunMessage,false},
 					{L7P_DNS_QUERY,L7_DNS,IsDNSQuery,false},
 					{L7P_DHT,L7_DHT,IsDht,false},
 					{L7P_WIREGUARD_INITIATION,L7_WIREGUARD,IsWireguardHandshakeInitiation,false},

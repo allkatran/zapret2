@@ -1223,7 +1223,7 @@ void lua_pushf_ctrack(const t_ctrack *ctrack, const t_ctrack_position *pos)
 	LUA_STACK_GUARD_LEAVE(params.L, 0)
 }
 
-void lua_pushf_args(const struct ptr_list_head *args, int idx_desync)
+void lua_pushf_args(const struct str2_list_head *args, int idx_desync)
 {
 	// var=val - pass val string
 	// var=%val - subst 'val' blob
@@ -1233,7 +1233,7 @@ void lua_pushf_args(const struct ptr_list_head *args, int idx_desync)
 
 	LUA_STACK_GUARD_ENTER(params.L)
 
-	struct ptr_list *arg;
+	struct str2_list *arg;
 	const char *var, *val;
 
 	idx_desync = lua_absindex(params.L, idx_desync);
@@ -1242,8 +1242,8 @@ void lua_pushf_args(const struct ptr_list_head *args, int idx_desync)
 	lua_newtable(params.L);
 	LIST_FOREACH(arg, args, next)
 	{
-		var = (char*)arg->ptr1;
-		val = arg->ptr2 ? (char*)arg->ptr2 : "";
+		var = arg->str1;
+		val = arg->str2 ? arg->str2 : "";
 		if (val[0]=='\\' && (val[1]=='%' || val[1]=='#'))
 			// escape char
 			lua_pushf_str(var, val+1);

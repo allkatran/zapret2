@@ -301,13 +301,34 @@ struct hostlist_file *RegisterHostlist(struct desync_profile *dp, bool bExclude,
 		filename);
 }
 
+static void HostlistsDebugProfile(const struct desync_profile *dp, const char *entity)
+{
+	struct hostlist_item *hl_item;
+
+	LIST_FOREACH(hl_item, &dp->hl_collection, next)
+		if (hl_item->hfile!=dp->hostlist_auto)
+		{
+			if (hl_item->hfile->filename)
+				DLOG("%s %u (%s) include hostlist %s%s\n",entity, dp->n, PROFILE_NAME(dp), hl_item->hfile->filename,hl_item->hfile->hostlist ? "" : " (empty)");
+			else
+				DLOG("%s %u (%s) include fixed hostlist%s\n",entity, dp->n, PROFILE_NAME(dp), hl_item->hfile->hostlist ? "" : " (empty)");
+		}
+	LIST_FOREACH(hl_item, &dp->hl_collection_exclude, next)
+	{
+		if (hl_item->hfile->filename)
+			DLOG("%s %u (%s) exclude hostlist %s%s\n",entity, dp->n,PROFILE_NAME(dp),hl_item->hfile->filename,hl_item->hfile->hostlist ? "" : " (empty)");
+		else
+			DLOG("%s %u (%s) exclude fixed hostlist%s\n",entity, dp->n,PROFILE_NAME(dp),hl_item->hfile->hostlist ? "" : " (empty)");
+	}
+	if (dp->hostlist_auto)
+		DLOG("%s %u (%s) auto hostlist %s%s\n",entity, dp->n,PROFILE_NAME(dp),dp->hostlist_auto->filename,dp->hostlist_auto->hostlist ? "" : " (empty)");
+}
 void HostlistsDebug()
 {
 	if (!params.debug) return;
 
 	struct hostlist_file *hfile;
 	struct desync_profile_list *dpl;
-	struct hostlist_item *hl_item;
 
 	LIST_FOREACH(hfile, &params.hostlists, next)
 	{
@@ -319,22 +340,10 @@ void HostlistsDebug()
 
 	LIST_FOREACH(dpl, &params.desync_profiles, next)
 	{
-		LIST_FOREACH(hl_item, &dpl->dp.hl_collection, next)
-			if (hl_item->hfile!=dpl->dp.hostlist_auto)
-			{
-				if (hl_item->hfile->filename)
-					DLOG("profile %u (%s) include hostlist %s%s\n",dpl->dp.n, PROFILE_NAME(&dpl->dp), hl_item->hfile->filename,hl_item->hfile->hostlist ? "" : " (empty)");
-				else
-					DLOG("profile %u (%s) include fixed hostlist%s\n",dpl->dp.n, PROFILE_NAME(&dpl->dp), hl_item->hfile->hostlist ? "" : " (empty)");
-			}
-		LIST_FOREACH(hl_item, &dpl->dp.hl_collection_exclude, next)
-		{
-			if (hl_item->hfile->filename)
-				DLOG("profile %u (%s) exclude hostlist %s%s\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),hl_item->hfile->filename,hl_item->hfile->hostlist ? "" : " (empty)");
-			else
-				DLOG("profile %u (%s) exclude fixed hostlist%s\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),hl_item->hfile->hostlist ? "" : " (empty)");
-		}
-		if (dpl->dp.hostlist_auto)
-			DLOG("profile %u (%s) auto hostlist %s%s\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),dpl->dp.hostlist_auto->filename,dpl->dp.hostlist_auto->hostlist ? "" : " (empty)");
+		HostlistsDebugProfile(&dpl->dp, "profile");
+	}
+	LIST_FOREACH(dpl, &params.desync_templates, next)
+	{
+		HostlistsDebugProfile(&dpl->dp, "template");
 	}
 }

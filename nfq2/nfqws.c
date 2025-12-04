@@ -48,11 +48,6 @@
 #define NF_ACCEPT 1
 #endif
 
-#define CTRACK_T_SYN	60
-#define CTRACK_T_FIN	60
-#define CTRACK_T_EST	300
-#define CTRACK_T_UDP	60
-
 #define MAX_CONFIG_FILE_SIZE 16384
 
 struct params_s params;
@@ -1007,27 +1002,27 @@ static bool parse_pf_list(char *opt, struct port_filters_head *pfl)
 	return true;
 }
 
-bool lua_call_param_add(char *opt, struct ptr_list_head *args)
+bool lua_call_param_add(char *opt, struct str2_list_head *args)
 {
 	char c,*p;
-	struct ptr_list *arg;
+	struct str2_list *arg;
 
 	if ((p = strchr(opt,'=')))
 	{
 		c = *p; *p = 0;
 	}
-	if (!is_identifier(opt) || !(arg=ptrlist_add(args)))
+	if (!is_identifier(opt) || !(arg=str2list_add(args)))
 	{
 		if (p) *p = c;
 		return false;
 	}
-	arg->ptr1 = strdup(opt);
+	arg->str1 = strdup(opt);
 	if (p)
 	{
-		arg->ptr2 = strdup(p+1);
+		arg->str2 = strdup(p+1);
 		*p = c;
 	}
-	return arg->ptr1;
+	return !!arg->str2;
 }
 
 struct func_list *parse_lua_call(char *opt, struct func_list_head *flist)
@@ -1156,21 +1151,21 @@ static void BlobDebug()
 	}
 }
 
-static void LuaDesyncDebug(struct desync_profile *dp)
+static void LuaDesyncDebug(struct desync_profile *dp, const char *entity)
 {
 	if (params.debug)
 	{
 		struct func_list *func;
-		struct ptr_list *arg;
+		struct str2_list *arg;
 		int n,i;
 		LIST_FOREACH(func, &dp->lua_desync, next)
 		{
-			DLOG("profile %u (%s) lua %s(",dp->n,PROFILE_NAME(dp),func->func);
+			DLOG("%s %u (%s) lua %s(",entity,dp->n,PROFILE_NAME(dp),func->func);
 			n=0;
 			LIST_FOREACH(arg, &func->args, next)
 			{
 				if (n) DLOG(",");
-				DLOG(arg->ptr2 ? "%s=\"%s\"" : "%s=\"\"", (char*)arg->ptr1, (char*)arg->ptr2);
+				DLOG(arg->str2 ? "%s=\"%s\"" : "%s=\"\"", arg->str1, arg->str2);
 				n++;
 			}
 			DLOG(" range_in=%c%u%c%c%u range_out=%c%u%c%c%u payload_type=",
@@ -1415,6 +1410,8 @@ static void exithelp(void)
 		" --new\t\t\t\t\t\t\t; begin new profile\n"
 		" --skip\t\t\t\t\t\t\t; do not use this profile\n"
 		" --name\t\t\t\t\t\t\t; set profile name\n"
+		" --template\t\t\t\t\t\t; use this profile as template (must be named or will be useless)\n"
+		" --import=<name>\t\t\t\t\t; populate current profile with template data\n"
 		" --filter-l3=ipv4|ipv6\t\t\t\t\t; L3 protocol filter. multiple comma separated values allowed.\n"
 		" --filter-tcp=[~]port1[-port2]|*\t\t\t; TCP port filter. ~ means negation. setting tcp and not setting udp filter denies udp. comma separated list allowed.\n"
 		" --filter-udp=[~]port1[-port2]|*\t\t\t; UDP port filter. ~ means negation. setting udp and not setting tcp filter denies tcp. comma separated list allowed.\n"
@@ -1565,6 +1562,8 @@ enum opt_indices {
 	IDX_NEW,
 	IDX_SKIP,
 	IDX_NAME,
+	IDX_TEMPLATE,
+	IDX_IMPORT,
 	IDX_FILTER_L3,
 	IDX_FILTER_TCP,
 	IDX_FILTER_UDP,
@@ -1646,6 +1645,8 @@ static const struct option long_options[] = {
 	[IDX_NEW] = {"new", no_argument, 0, 0},
 	[IDX_SKIP] = {"skip", no_argument, 0, 0},
 	[IDX_NAME] = {"name", required_argument, 0, 0},
+	[IDX_TEMPLATE] = {"template", no_argument, 0, 0},
+	[IDX_IMPORT] = {"import", required_argument, 0, 0},
 	[IDX_FILTER_L3] = {"filter-l3", required_argument, 0, 0},
 	[IDX_FILTER_TCP] = {"filter-tcp", required_argument, 0, 0},
 	[IDX_FILTER_UDP] = {"filter-udp", required_argument, 0, 0},
@@ -1684,15 +1685,7 @@ static const struct option long_options[] = {
 
 int main(int argc, char **argv)
 {
-	if (argc < 2) exithelp();
-
-
-	aes_init_keygen_tables(); // required for aes
-	set_console_io_buffering();
-	set_env_exedir(argv[0]);
-
 #ifdef __CYGWIN__
-	prepare_low_appdata();
 	if (service_run(argc, argv))
 	{
 		// we were running as service. now exit.
@@ -1701,7 +1694,7 @@ int main(int argc, char **argv)
 #endif
 	int result, v;
 	int option_index = 0;
-	bool bSkip = false, bDry = false;
+	bool bSkip = false, bDry = false, bTemplate;
 	struct hostlist_file *anon_hl = NULL, *anon_hl_exclude = NULL;
 	struct ipset_file *anon_ips = NULL, *anon_ips_exclude = NULL;
 	uint64_t payload_type=0;
@@ -1713,17 +1706,27 @@ int main(int argc, char **argv)
 	unsigned int hash_wf_tcp_in = 0, hash_wf_udp_in = 0, hash_wf_tcp_out = 0, hash_wf_udp_out = 0, hash_wf_raw = 0, hash_wf_raw_part = 0, hash_ssid_filter = 0, hash_nlm_filter = 0;
 #endif
 
+	if (argc < 2) exithelp();
+
 	srandom(time(NULL));
+	aes_init_keygen_tables(); // required for aes
 	mask_from_preflen6_prepare();
+	set_env_exedir(argv[0]);
+	set_console_io_buffering();
+#ifdef __CYGWIN__
+	prepare_low_appdata();
+#endif
 
 	PRINT_VER;
 
-	memset(&params, 0, sizeof(params));
+	init_params(&params);
+	ApplyDefaultBlobs(&params.blobs);
 
 	struct desync_profile_list *dpl;
 	struct desync_profile *dp;
-	unsigned int desync_profile_count = 0;
+	unsigned int desync_profile_count = 0, desync_template_count = 0;
 
+	bTemplate = false;
 	if (!(dpl = dp_list_add(&params.desync_profiles)))
 	{
 		DLOG_ERR("desync_profile_add: out of memory\n");
@@ -1731,39 +1734,6 @@ int main(int argc, char **argv)
 	}
 	dp = &dpl->dp;
 	dp->n = ++desync_profile_count;
-
-#ifdef __linux__
-	params.qnum = -1;
-#elif defined(BSD)
-	params.port = 0;
-#endif
-	params.desync_fwmark = DPI_DESYNC_FWMARK_DEFAULT;
-	params.ctrack_t_syn = CTRACK_T_SYN;
-	params.ctrack_t_est = CTRACK_T_EST;
-	params.ctrack_t_fin = CTRACK_T_FIN;
-	params.ctrack_t_udp = CTRACK_T_UDP;
-	params.ipcache_lifetime = IPCACHE_LIFETIME;
-	params.lua_gc = LUA_GC_INTERVAL;
-
-	LIST_INIT(&params.hostlists);
-	LIST_INIT(&params.ipsets);
-	LIST_INIT(&params.blobs);
-	LIST_INIT(&params.lua_init_scripts);
-
-	ApplyDefaultBlobs(&params.blobs);
-
-#ifdef __CYGWIN__
-	LIST_INIT(&params.ssid_filter);
-	LIST_INIT(&params.nlm_filter);
-	LIST_INIT(&params.wf_raw_part);
-#else
-	if (can_drop_root())
-	{
-		params.uid = params.gid[0] = 0x7FFFFFFF; // default uid:gid
-		params.gid_count = 1;
-		params.droproot = true;
-	}
-#endif
 
 #if !defined( __OpenBSD__) && !defined(__ANDROID__)
 	if (argc >= 2 && (argv[1][0] == '@' || argv[1][0] == '$'))
@@ -2124,19 +2094,35 @@ int main(int argc, char **argv)
 			else
 			{
 				check_dp(dp);
+				if (bTemplate)
+				{
+					if (dp->name && dp_list_search_name(&params.desync_templates, dp->name))
+					{
+						DLOG_ERR("template '%s' already present\n", dp->name);
+						exit_clean(1);
+					}
+					dpl->dp.n = ++desync_template_count;
+					dp_list_move(&params.desync_templates, dpl);
+				}
+				else
+				{
+					desync_profile_count++;
+				}
 				if (!(dpl = dp_list_add(&params.desync_profiles)))
 				{
 					DLOG_ERR("desync_profile_add: out of memory\n");
 					exit_clean(1);
 				}
 				dp = &dpl->dp;
-				dp->n = ++desync_profile_count;
+				dp->n = desync_profile_count;
 			}
 			anon_hl = anon_hl_exclude = NULL;
 			anon_ips = anon_ips_exclude = NULL;
 			payload_type = 0;
 			range_in = PACKET_RANGE_NEVER;
 			range_out = PACKET_RANGE_ALWAYS;
+
+			bTemplate = false;
 			break;
 		case IDX_SKIP:
 			bSkip = true;
@@ -2147,6 +2133,25 @@ int main(int argc, char **argv)
 			{
 				DLOG_ERR("out of memory\n");
 				exit_clean(1);
+			}
+			break;
+		case IDX_TEMPLATE:
+			bTemplate = true;
+			break;
+		case IDX_IMPORT:
+			{
+				struct desync_profile_list *tpl = dp_list_search_name(&params.desync_templates, optarg);
+				if (!tpl)
+				{
+					DLOG_ERR("template '%s' not found\n", optarg);
+					exit_clean(1);
+				}
+				if (!dp_list_copy(dp, &tpl->dp))
+				{
+					DLOG_ERR("could not copy template\n");
+					exit_clean(1);
+				}
+				dp->n = desync_profile_count;
 			}
 			break;
 
@@ -2411,7 +2416,20 @@ int main(int argc, char **argv)
 		desync_profile_count--;
 	}
 	else
+	{
 		check_dp(dp);
+		if (bTemplate)
+		{
+			if (dp->name && dp_list_search_name(&params.desync_templates, dp->name))
+			{
+				DLOG_ERR("template '%s' already present\n", dp->name);
+				exit_clean(1);
+			}
+			dpl->dp.n = ++desync_template_count;
+			dp_list_move(&params.desync_templates, dpl);
+			desync_profile_count--;
+		}
+	}
 
 	// do not need args from file anymore
 #if !defined( __OpenBSD__) && !defined(__ANDROID__)
@@ -2441,7 +2459,8 @@ int main(int argc, char **argv)
 		exit_clean(1);
 	}
 
-	DLOG_CONDUP("we have %d user defined desync profile(s) and default low priority profile 0\n", desync_profile_count);
+	DLOG_CONDUP("we have %u user defined desync profile(s) and default low priority profile 0\n", desync_profile_count);
+	DLOG_CONDUP("we have %u user defined desync template(s)\n", desync_template_count);
 
 	if (params.writeable_dir_enable)
 	{
@@ -2479,7 +2498,12 @@ int main(int argc, char **argv)
 				DLOG_ERR("could not make '%s' accessible. auto hostlist file may not be writable after privilege drop\n", dp->hostlist_auto->filename);
 
 		}
-		LuaDesyncDebug(dp);
+		LuaDesyncDebug(dp,"profile");
+	}
+	LIST_FOREACH(dpl, &params.desync_templates, next)
+	{
+		dp = &dpl->dp;
+		LuaDesyncDebug(dp,"template");
 	}
 
 	if (!test_list_files())
@@ -2504,6 +2528,9 @@ int main(int argc, char **argv)
 	DLOG("\nblobs summary:\n");
 	BlobDebug();
 	DLOG("\n");
+
+	// not required anymore. free memory
+	dp_list_destroy(&params.desync_templates);
 
 #ifdef __CYGWIN__
 	if (!*params.windivert_filter)

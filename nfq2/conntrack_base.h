@@ -1,5 +1,10 @@
 #pragma once
 
+#define CTRACK_T_SYN	60
+#define CTRACK_T_FIN	60
+#define CTRACK_T_EST	300
+#define CTRACK_T_UDP	60
+
 // SYN - SYN or SYN/ACK received
 // ESTABLISHED - any except SYN or SYN/ACK received
 // FIN - FIN or RST received

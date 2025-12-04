@@ -42,7 +42,7 @@ typedef enum {
 	L7P_WIREGUARD_DATA,
 	L7P_DHT,
 	L7P_DISCORD_IP_DISCOVERY,
-	L7P_STUN_BINDING_REQ,
+	L7P_STUN,
 	L7P_XMPP_STREAM,
 	L7P_XMPP_STARTTLS,
 	L7P_XMPP_PROCEED,
@@ -153,7 +153,7 @@ bool IsWireguardKeepalive(const uint8_t *data, size_t len);
 bool IsWireguardData(const uint8_t *data, size_t len);
 bool IsDht(const uint8_t *data, size_t len);
 bool IsDiscordIpDiscoveryRequest(const uint8_t *data, size_t len);
-bool IsStunBindingRequest(const uint8_t *data, size_t len);
+bool IsStunMessage(const uint8_t *data, size_t len);
 bool IsMTProto(const uint8_t *data, size_t len);
 
 #define QUIC_MAX_CID_LENGTH  20

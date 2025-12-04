@@ -48,7 +48,7 @@ bool l7_proto_match(t_l7proto l7proto, uint64_t filter_l7)
 static const char *l7payload_name[] = {
  "all","unknown","empty","known","http_req","http_reply","tls_client_hello","tls_server_hello","quic_initial",
  "wireguard_initiation","wireguard_response","wireguard_cookie","wireguard_keepalive","wireguard_data",
- "dht","discord_ip_discovery","stun_binding_req",
+ "dht","discord_ip_discovery","stun",
  "xmpp_stream", "xmpp_starttls", "xmpp_proceed", "xmpp_features",
  "dns_query", "dns_response",
  "mtproto_initial"};
@@ -1409,11 +1409,11 @@ bool IsDiscordIpDiscoveryRequest(const uint8_t *data, size_t len)
 		!memcmp(data+8,"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",64);
 		// address is not set in request
 }
-bool IsStunBindingRequest(const uint8_t *data, size_t len)
+bool IsStunMessage(const uint8_t *data, size_t len)
 {
 	return len>=20 && // header size
-		data[0]==0 && data[1]==1 &&
-		(data[3]&0b11)==0 && // length must be a multiple of 4
+		(data[0]&0xC0)==0 && // 2 most significant bits must be zeroes
+		(data[3]&3)==0 && // length must be a multiple of 4
 		ntohl(*(uint32_t*)(&data[4]))==0x2112A442 && // magic cookie
 		ntohs(*(uint16_t*)(&data[2]))==len-20;
 }

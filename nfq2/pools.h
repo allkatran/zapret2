@@ -17,6 +17,17 @@
 
 #define HOSTLIST_POOL_FLAG_STRICT_MATCH		1
 
+#define LIST_TAIL(head, tail, temp) {\
+	tail=LIST_FIRST(head); \
+	if (tail) while ((temp=LIST_NEXT(tail,next))) tail = temp; }
+
+#define LIST_INSERT_TAIL(head, tail, elm, field) { \
+	if (LIST_FIRST(head)) \
+		LIST_INSERT_AFTER(tail, elm, field); \
+	else \
+		LIST_INSERT_HEAD(head, elm, field); }
+
+
 typedef struct hostlist_pool {
 	char *str;		/* key */
 	uint32_t flags;		/* custom data */
@@ -38,25 +49,28 @@ bool strlist_add(struct str_list_head *head, const char *str);
 bool strlist_add_tail(struct str_list_head *head, const char *str);
 void strlist_destroy(struct str_list_head *head);
 bool strlist_search(const struct str_list_head *head, const char *str);
+bool strlist_copy(struct str_list_head *to, const struct str_list_head *from);
 
-struct ptr_list {
-	void *ptr1,*ptr2;
-	LIST_ENTRY(ptr_list) next;
+struct str2_list {
+	char *str1,*str2;
+	LIST_ENTRY(str2_list) next;
 };
-LIST_HEAD(ptr_list_head, ptr_list);
+LIST_HEAD(str2_list_head, str2_list);
 
-struct ptr_list *ptrlist_add(struct ptr_list_head *head);
-void ptrlist_destroy(struct ptr_list_head *head);
+struct str2_list *str2list_add(struct str2_list_head *head);
+bool str2list_copy(struct str2_list_head *to, const struct str2_list_head *from);
+void str2list_destroy(struct str2_list_head *head);
 
 struct func_list {
 	char *func;
 	uint64_t payload_type;
 	struct packet_range range_in, range_out;
-	struct ptr_list_head args;
+	struct str2_list_head args;
 	LIST_ENTRY(func_list) next;
 };
 LIST_HEAD(func_list_head, func_list);
 struct func_list *funclist_add_tail(struct func_list_head *head, const char *func);
+bool funclist_copy(struct func_list_head *to, const struct func_list_head *from);
 void funclist_destroy(struct func_list_head *head);
 
 
@@ -96,6 +110,7 @@ struct hostlist_item {
 LIST_HEAD(hostlist_collection_head, hostlist_item);
 struct hostlist_item *hostlist_collection_add(struct hostlist_collection_head *head, struct hostlist_file *hfile);
 void hostlist_collection_destroy(struct hostlist_collection_head *head);
+bool hostlist_collection_copy(struct hostlist_collection_head *to, const struct hostlist_collection_head *from);
 struct hostlist_item *hostlist_collection_search(struct hostlist_collection_head *head, const char *filename);
 bool hostlist_collection_is_empty(const struct hostlist_collection_head *head);
 
@@ -158,6 +173,7 @@ struct ipset_item {
 };
 LIST_HEAD(ipset_collection_head, ipset_item);
 struct ipset_item * ipset_collection_add(struct ipset_collection_head *head, struct ipset_file *hfile);
+bool ipset_collection_copy(struct ipset_collection_head *to, const struct ipset_collection_head *from);
 void ipset_collection_destroy(struct ipset_collection_head *head);
 struct ipset_item *ipset_collection_search(struct ipset_collection_head *head, const char *filename);
 bool ipset_collection_is_empty(const struct ipset_collection_head *head);

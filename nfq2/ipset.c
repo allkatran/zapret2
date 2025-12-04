@@ -287,13 +287,31 @@ static const char *dbg_ipset_fill(const ipset *ips)
 		else
 			return "empty";
 }
+void IpsetsDebugProfile(const struct desync_profile *dp, const char *entity)
+{
+	struct ipset_item *ips_item;
+
+	LIST_FOREACH(ips_item, &dp->ips_collection, next)
+	{
+		if (ips_item->hfile->filename)
+			DLOG("%s %u (%s) include ipset %s (%s)\n",entity,dp->n,PROFILE_NAME(dp),ips_item->hfile->filename,dbg_ipset_fill(&ips_item->hfile->ipset));
+		else
+			DLOG("%s %u (%s) include fixed ipset (%s)\n",entity,dp->n,PROFILE_NAME(dp),dbg_ipset_fill(&ips_item->hfile->ipset));
+	}
+	LIST_FOREACH(ips_item, &dp->ips_collection_exclude, next)
+	{
+		if (ips_item->hfile->filename)
+			DLOG("%s %u (%s) exclude ipset %s (%s)\n",entity,dp->n,PROFILE_NAME(dp),ips_item->hfile->filename,dbg_ipset_fill(&ips_item->hfile->ipset));
+		else
+			DLOG("%s %u (%s) exclude fixed ipset (%s)\n",entity,dp->n,PROFILE_NAME(dp),dbg_ipset_fill(&ips_item->hfile->ipset));
+	}
+}
 void IpsetsDebug()
 {
 	if (!params.debug) return;
 
 	struct ipset_file *hfile;
 	struct desync_profile_list *dpl;
-	struct ipset_item *ips_item;
 
 	LIST_FOREACH(hfile, &params.ipsets, next)
 	{
@@ -305,15 +323,10 @@ void IpsetsDebug()
 
 	LIST_FOREACH(dpl, &params.desync_profiles, next)
 	{
-		LIST_FOREACH(ips_item, &dpl->dp.ips_collection, next)
-			if (ips_item->hfile->filename)
-				DLOG("profile %u (%s) include ipset %s (%s)\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),ips_item->hfile->filename,dbg_ipset_fill(&ips_item->hfile->ipset));
-			else
-				DLOG("profile %u (%s) include fixed ipset (%s)\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),dbg_ipset_fill(&ips_item->hfile->ipset));
-		LIST_FOREACH(ips_item, &dpl->dp.ips_collection_exclude, next)
-			if (ips_item->hfile->filename)
-				DLOG("profile %u (%s) exclude ipset %s (%s)\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),ips_item->hfile->filename,dbg_ipset_fill(&ips_item->hfile->ipset));
-			else
-				DLOG("profile %u (%s) exclude fixed ipset (%s)\n",dpl->dp.n,PROFILE_NAME(&dpl->dp),dbg_ipset_fill(&ips_item->hfile->ipset));
+		IpsetsDebugProfile(&dpl->dp, "profile");
+	}
+	LIST_FOREACH(dpl, &params.desync_templates, next)
+	{
+		IpsetsDebugProfile(&dpl->dp, "template");
 	}
 }
