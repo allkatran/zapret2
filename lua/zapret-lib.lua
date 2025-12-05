@@ -85,8 +85,23 @@ function apply_execution_plan(desync, plan)
 	desync.arg = deepcopy(plan.arg)
 	apply_arg_prefix(desync.arg)
 end
+-- produce resulting verdict from 2 verdict
+function verdict_aggregate(v1, v2)
+	local v
+	v1 = v1 or VERDICT_PASS
+	v2 = v2 or VERDICT_PASS
+	if v1==VERDICT_DROP or v2==VERDICT_DROP then
+		v=VERDICT_DROP
+	elseif v1==VERDICT_MODIFY or v2==VERDICT_MODIFY then
+		v=VERDICT_MODIFY
+	else
+		v=VERDICT_PASS
+	end
+	return v
+end
 -- redo what whould be done without orchestration
-function replay_execution_plan(desync, plan)
+function replay_execution_plan(ctx, desync, plan)
+	local verdict = VERDICT_PASS
 	for i=1,#plan do
 		if not payload_match_filter(desync.l7payload, plan[i].payload_filter) then
 			DLOG("orchestrator: not calling '"..desync.func_instance.."' because payload '"..desync.l7payload.."' does not match filter '"..plan[i].payload_filter.."'")
@@ -95,9 +110,10 @@ function replay_execution_plan(desync, plan)
 		else
 			apply_execution_plan(desync, plan[i])
 			DLOG("orchestrator: executing '"..desync.func_instance.."'")
-			_G[plan[i].func](ctx, desync)
+			verdict = verdict_aggregate(verdict,_G[plan[i].func](ctx, desync))
 		end
 	end
+	return verdict
 end
 -- this function demonstrates how to stop execution of upcoming desync instances and take over their job
 -- this can be used, for example, for orchestrating conditional processing without modifying of desync functions code
@@ -108,7 +124,7 @@ function desync_orchestrator_example(ctx, desync)
 		DLOG("orchestrator: taking over upcoming desync instances")
 		local desync_copy = deepcopy(desync)
 		execution_plan_cancel(ctx)
-		replay_execution_plan(desync_copy, plan)
+		return replay_execution_plan(ctx, desync_copy, plan)
 	end
 end
 
@@ -872,7 +888,6 @@ end
 -- send dissect with tcp segmentation based on mss value. appply specified rawsend options.
 function rawsend_dissect_segmented(desync, dis, mss, options)
 	local discopy = deepcopy(dis)
-	apply_ip_id(desync, discopy, options and options.ipid)
 	apply_fooling(desync, discopy, options and options.fooling)
 
 	if dis.tcp then
@@ -888,6 +903,7 @@ function rawsend_dissect_segmented(desync, dis, mss, options)
 				len = #payload - pos + 1
 				if len > max_data then len = max_data end
 				discopy.payload = string.sub(payload,pos,pos+len-1)
+				apply_ip_id(desync, discopy, options and options.ipid)
 				if not rawsend_dissect_ipfrag(discopy, options) then
 					-- stop if failed
 					return false
@@ -898,6 +914,7 @@ function rawsend_dissect_segmented(desync, dis, mss, options)
 			return true
 		end
 	end
+	apply_ip_id(desync, discopy, options and options.ipid)
 	-- no reason to segment
 	return rawsend_dissect_ipfrag(discopy, options)
 end
