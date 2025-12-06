@@ -72,7 +72,7 @@ DESYNC_MARK_POSTNAT=${DESYNC_MARK_POSTNAT:-0x20000000}
 
 QNUM=${QNUM:-300}
 NFQWS2="${NFQWS2:-$ZAPRET_BASE/nfq2/nfqws2}"
-LUAOPT="--lua-init=@$ZAPRET_BASE/lua/zapret-lib.lua --lua-init=@$ZAPRET_BASE/lua/zapret-antidpi.lua"
+LUAOPT="--lua-init=@$ZAPRET_BASE/lua/zapret-lib.lua --lua-init=@$ZAPRET_BASE/lua/zapret-antidpi.lua --lua-init=@$ZAPRET_BASE/lua/zapret-auto.lua"
 NFQWS2_OPT_BASE="$USEROPT --fwmark=$DESYNC_MARK $LUAOPT"
 
 

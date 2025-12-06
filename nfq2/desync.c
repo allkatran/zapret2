@@ -648,6 +648,7 @@ static uint8_t desync(
 	const t_ctrack_position *pos,
 	t_l7payload l7payload,
 	const struct dissect *dis,
+	const struct in_addr *sdp4, const struct in6_addr *sdp6, uint16_t sdport,
 	uint8_t *mod_pkt, size_t *len_mod_pkt,
 	unsigned int replay_piece, unsigned int replay_piece_count, size_t reasm_offset, const uint8_t *rdata_payload, size_t rlen_payload,
 	const uint8_t *data_decrypt, size_t len_decrypt)
@@ -677,6 +678,9 @@ static uint8_t desync(
 		}
 		if (!pos) pos = &ctrack->pos;
 	}
+
+	LUA_STACK_GUARD_ENTER(params.L)
+
 	if (LIST_FIRST(&dp->lua_desync))
 	{
 		b_cutoff_all = b_unwanted_payload = true;
@@ -733,6 +737,12 @@ static uint8_t desync(
 			lua_pushf_str("ifin", (ifin && *ifin) ? ifin : NULL);
 			lua_pushf_str("ifout", (ifout && *ifout) ? ifout : NULL);
 			lua_pushf_int("fwmark", fwmark);
+			lua_pushf_table("target");
+			lua_getfield(params.L,-1,"target");
+			if (sdport) lua_pushf_int("port",sdport);
+			if (sdp4) lua_pushf_lstr("ip",(const char*)sdp4,sizeof(*sdp4));
+			if (sdp6) lua_pushf_lstr("ip6",(const char*)sdp6,sizeof(*sdp6));
+			lua_pop(params.L,1);
 			lua_pushf_bool("replay", !!replay_piece_count);
 			if (replay_piece_count)
 			{
@@ -864,6 +874,7 @@ static uint8_t desync(
 		DLOG("no lua functions in this profile\n");
 ex:
 	luaL_unref(params.L, LUA_REGISTRYINDEX, ref_arg);
+	LUA_STACK_GUARD_LEAVE(params.L, 0)
 	return verdict;
 err:
 	DLOG_ERR("desync ERROR. passing packet unmodified.\n");
@@ -1354,7 +1365,7 @@ static uint8_t dpi_desync_tcp_packet_play(
 		ntop46_port((struct sockaddr *)&dst, s2, sizeof(s2));
 		DLOG("dpi desync src=%s dst=%s track_direction=%s fixed_direction=%s connection_proto=%s payload_type=%s\n", s1, s2, bReverse ? "in" : "out", bReverseFixed ? "in" : "out", l7proto_str(l7proto), l7payload_str(l7payload));
 	}
-	verdict = desync(dp, fwmark, ifin, ifout, bReverseFixed, ctrack_replay, pos, l7payload, dis, mod_pkt, len_mod_pkt, replay_piece, replay_piece_count, reasm_offset, rdata_payload, rlen_payload, NULL, 0);
+	verdict = desync(dp, fwmark, ifin, ifout, bReverseFixed, ctrack_replay, pos, l7payload, dis, sdip4, sdip6, sdport, mod_pkt, len_mod_pkt, replay_piece, replay_piece_count, reasm_offset, rdata_payload, rlen_payload, NULL, 0);
 
 pass:
 	return (!bReverseFixed && (verdict & VERDICT_MASK) == VERDICT_DROP) ? ct_new_postnat_fix(ctrack, dis, mod_pkt, len_mod_pkt) : verdict;
@@ -1810,7 +1821,7 @@ static uint8_t dpi_desync_udp_packet_play(
 		ntop46_port((struct sockaddr *)&dst, s2, sizeof(s2));
 		DLOG("dpi desync src=%s dst=%s track_direction=%s fixed_direction=%s connection_proto=%s payload_type=%s\n", s1, s2, bReverse ? "in" : "out", bReverseFixed ? "in" : "out", l7proto_str(l7proto), l7payload_str(l7payload));
 	}
-	verdict = desync(dp, fwmark, ifin, ifout, bReverseFixed, ctrack_replay, pos, l7payload, dis, mod_pkt, len_mod_pkt, replay_piece, replay_piece_count, reasm_offset, NULL, 0, data_decrypt, len_decrypt);
+	verdict = desync(dp, fwmark, ifin, ifout, bReverseFixed, ctrack_replay, pos, l7payload, dis, sdip4, sdip6, sdport, mod_pkt, len_mod_pkt, replay_piece, replay_piece_count, reasm_offset, NULL, 0, data_decrypt, len_decrypt);
 
 pass:
 	return (!bReverse && (verdict & VERDICT_MASK) == VERDICT_DROP) ? ct_new_postnat_fix(ctrack, dis, mod_pkt, len_mod_pkt) : verdict;

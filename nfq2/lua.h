@@ -51,6 +51,8 @@ void lua_pushf_bool(const char *field, bool b);
 void lua_pushi_bool(lua_Integer idx, bool b);
 void lua_pushf_str(const char *field, const char *str);
 void lua_pushi_str(lua_Integer idx, const char *str);
+void lua_pushf_lstr(const char *field, const char *str, size_t len);
+void lua_pushi_lstr(lua_Integer idx, const char *str, size_t len);
 void lua_pushf_int(const char *field, lua_Integer v);
 void lua_pushi_int(lua_Integer idx, lua_Integer v);
 void lua_push_raw(const void *v, size_t l);

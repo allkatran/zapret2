@@ -692,8 +692,8 @@ static int luacall_clock_gettime(lua_State *L)
 }
 static int luacall_instance_cutoff(lua_State *L)
 {
-	// out : func_name.profile_number[0]
-	// in  : func_name.profile_number[1]
+	// out : instance_name.profile_number[0]
+	// in  : instance_name.profile_number[1]
 
 	lua_check_argc_range(L,"instance_cutoff",1,2);
 
@@ -701,45 +701,51 @@ static int luacall_instance_cutoff(lua_State *L)
 
 	const t_lua_desync_context *ctx;
 
-	if (!lua_islightuserdata(L,1))
-		luaL_error(L, "instance_cutoff expect desync context in the first argument");
-	ctx = lua_touserdata(L,1);
-
-	int argc=lua_gettop(L);
-	bool bIn,bOut;
-	if (argc>=2 && lua_type(L,2)!=LUA_TNIL)
-	{
-		luaL_checktype(L,2,LUA_TBOOLEAN);
-		bOut = lua_toboolean(L,2);
-		bIn = !bOut;
-	}
+	if (lua_isnil(L,1))
+		// this can happen in orchestrated function. they do not have their own ctx and they cant cutoff
+		DLOG("instance cutoff not possible because missing ctx\n");
 	else
-		bIn = bOut = true;
-
-	if (ctx->ctrack)
 	{
-		DLOG("instance cutoff for '%s' in=%u out=%u\n",ctx->instance,bIn,bOut);
-		lua_rawgeti(L,LUA_REGISTRYINDEX,ctx->ctrack->lua_instance_cutoff);
-		lua_getfield(L,-1,ctx->instance);
-		if (!lua_istable(L,-1))
+		if (!lua_islightuserdata(L,1))
+			luaL_error(L, "instance_cutoff expect desync context in the first argument");
+		ctx = lua_touserdata(L,1);
+
+		int argc=lua_gettop(L);
+		bool bIn,bOut;
+		if (argc>=2 && lua_type(L,2)!=LUA_TNIL)
 		{
-			lua_pop(L,1);
-			lua_pushf_table(ctx->instance);
+			luaL_checktype(L,2,LUA_TBOOLEAN);
+			bOut = lua_toboolean(L,2);
+			bIn = !bOut;
+		}
+		else
+			bIn = bOut = true;
+
+		if (ctx->ctrack)
+		{
+			DLOG("instance cutoff for '%s' in=%u out=%u\n",ctx->instance,bIn,bOut);
+			lua_rawgeti(L,LUA_REGISTRYINDEX,ctx->ctrack->lua_instance_cutoff);
 			lua_getfield(L,-1,ctx->instance);
-		}
-		lua_rawgeti(L,-1,ctx->dp->n);
-		if (!lua_istable(L,-1))
-		{
-			lua_pop(L,1);
-			lua_pushi_table(ctx->dp->n);
+			if (!lua_istable(L,-1))
+			{
+				lua_pop(L,1);
+				lua_pushf_table(ctx->instance);
+				lua_getfield(L,-1,ctx->instance);
+			}
 			lua_rawgeti(L,-1,ctx->dp->n);
+			if (!lua_istable(L,-1))
+			{
+				lua_pop(L,1);
+				lua_pushi_table(ctx->dp->n);
+				lua_rawgeti(L,-1,ctx->dp->n);
+			}
+			if (bOut) lua_pushi_bool(0,true);
+			if (bIn) lua_pushi_bool(1,true);
+			lua_pop(L,3);
 		}
-		if (bOut) lua_pushi_bool(0,true);
-		if (bIn) lua_pushi_bool(1,true);
-		lua_pop(L,3);
+		else
+			DLOG("instance cutoff requested for '%s' in=%u out=%u but not possible without conntrack\n",ctx->instance,bIn,bOut);
 	}
-	else
-		DLOG("instance cutoff requested for '%s' in=%u out=%u but not possible without conntrack\n",ctx->instance,bIn,bOut);
 
 	LUA_STACK_GUARD_RETURN(L,0)
 }
@@ -933,6 +939,18 @@ void lua_pushi_str(lua_Integer idx, const char *str)
 {
 	lua_pushinteger(params.L, idx);
 	lua_pushstring(params.L, str); // pushes nil if str==NULL
+	lua_rawset(params.L,-3);
+}
+void lua_pushf_lstr(const char *field, const char *str, size_t size)
+{
+	lua_pushstring(params.L, field);
+	lua_pushlstring(params.L, str, size);
+	lua_rawset(params.L,-3);
+}
+void lua_pushi_lstr(lua_Integer idx, const char *str, size_t size)
+{
+	lua_pushinteger(params.L, idx);
+	lua_pushlstring(params.L, str, size);
 	lua_rawset(params.L,-3);
 }
 void lua_push_raw(const void *v, size_t l)

@@ -113,7 +113,7 @@ end
 -- standard args : direction
 function http_domcase(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -139,7 +139,7 @@ end
 -- arg : spell=<str> . spelling of the "Host" header. must be exactly 4 chars long
 function http_hostcase(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -164,7 +164,7 @@ end
 -- standard args : direction
 function http_methodeol(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -221,10 +221,10 @@ function synack_split(ctx, desync)
 				error("synack_split: bad mode '"..mode.."'")
 			end
 		else
-			instance_cutoff(ctx) -- mission complete
+			instance_cutoff_shim(ctx, desync) -- mission complete
 		end
 	else
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 	end
 end
 
@@ -238,10 +238,10 @@ function synack(ctx, desync)
 			DLOG("synack: sending")
 			rawsend_dissect_ipfrag(dis, desync_opts(desync))
 		else
-			instance_cutoff(ctx) -- mission complete
+			instance_cutoff_shim(ctx, desync) -- mission complete
 		end
 	else
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 	end
 end
 
@@ -256,10 +256,10 @@ function wsize(ctx, desync)
 				return VERDICT_MODIFY
 			end
 		else
-			instance_cutoff(ctx) -- mission complete
+			instance_cutoff_shim(ctx, desync) -- mission complete
 		end
 	else
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 	end
 end
 
@@ -270,7 +270,7 @@ end
 -- arg : forced_cutoff=<list> - comma separated list of payloads that trigger forced wssize cutoff. by default - any non-empty payload
 function wssize(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	local verdict = VERDICT_PASS
@@ -281,7 +281,7 @@ function wssize(ctx, desync)
 		end
 		if #desync.dis.payload>0 and (not desync.arg.forced_cutoff or in_list(desync.arg.forced_cutoff, desync.l7payload)) then
 			DLOG("wssize: forced cutoff")
-			instance_cutoff(ctx)
+			instance_cutoff_shim(ctx, desync)
 		end
 	end
 	return verdict
@@ -305,10 +305,10 @@ function syndata(ctx, desync)
 				return VERDICT_DROP
 			end
 		else
-			instance_cutoff(ctx) -- mission complete
+			instance_cutoff_shim(ctx, desync) -- mission complete
 		end
 	else
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 	end
 end
 
@@ -317,7 +317,7 @@ end
 -- arg : rstack - send RST,ACK instead of RST
 function rst(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -371,7 +371,7 @@ end
 -- arg : nodrop - do not drop current dissect
 function multisplit(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -425,7 +425,7 @@ end
 -- arg : nodrop - do not drop current dissect
 function multidisorder(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -491,7 +491,7 @@ end
 -- arg : nodrop - do not drop current dissect
 function hostfakesplit(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -604,7 +604,7 @@ end
 -- arg : nodrop - do not drop current dissect
 function fakedsplit(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -697,7 +697,7 @@ end
 -- arg : nodrop - do not drop current dissect
 function fakeddisorder(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -797,7 +797,7 @@ end
 -- arg : blob=<blob> - use this data instead of desync.dis.payload
 function tcpseg(ctx, desync)
 	if not desync.dis.tcp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -841,7 +841,7 @@ end
 -- arg : pattern_offset=N . offset in the pattern. 0 by default
 function udplen(ctx, desync)
 	if not desync.dis.udp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)
@@ -877,7 +877,7 @@ end
 -- arg : dn=N - message starts from "dN". 2 by default
 function dht_dn(ctx, desync)
 	if not desync.dis.udp then
-		instance_cutoff(ctx)
+		instance_cutoff_shim(ctx, desync)
 		return
 	end
 	direction_cutoff_opposite(ctx, desync)

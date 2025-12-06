@@ -61,6 +61,46 @@ function posdebug(ctx,desync)
 	DLOG(s)
 end
 
+-- this shim is needed then function is orchestrated. ctx services not available
+-- have to emulate cutoff in LUA using connection persistent table track.lua_state
+function instance_cutoff_shim(ctx, desync, dir)
+	if ctx then
+		instance_cutoff(ctx, dir)
+	elseif not desync.track then
+		DLOG("instance_cutoff_shim: cannot cutoff '"..desync.func_instance.."' because conntrack is absent")
+	else
+		if not desync.track.lua_state.cutoff_shim then
+			desync.track.lua_state.cutoff_shim = {}
+		end
+		if not desync.track.lua_state.cutoff_shim[desync.func_instance] then
+			desync.track.lua_state.cutoff_shim[desync.func_instance] = {}
+		end
+		if type(dir)=="nil" then
+			-- cutoff both directions by default
+			desync.track.lua_state.cutoff_shim[desync.func_instance][true] = true
+			desync.track.lua_state.cutoff_shim[desync.func_instance][false] = true
+		else
+			desync.track.lua_state.cutoff_shim[desync.func_instance][dir] = true
+		end
+		if b_debug then DLOG("instance_cutoff_shim: cutoff '"..desync.func_instance.."' in="..tostring(type(dir)=="nil" and true or not dir).." out="..tostring(type(dir)=="nil" or dir)) end
+	end
+end
+function cutoff_shim_check(desync)
+	if not desync.track then
+		DLOG("cutoff_shim_check: cannot check '"..desync.func_instance.."' cutoff because conntrack is absent")
+		return false
+	else
+		local b=desync.track.lua_state.cutoff_shim and
+			desync.track.lua_state.cutoff_shim[desync.func_instance] and
+			desync.track.lua_state.cutoff_shim[desync.func_instance][desync.outgoing]
+		if b and b_debug then 
+			DLOG("cutoff_shim_check: '"..desync.func_instance.."' "..(desync.outgoing and "out" or "in").." cutoff")
+		end
+		return b
+	end
+end
+
+
 -- applies # and $ prefixes. #var means var length, %var means var value
 function apply_arg_prefix(arg)
 	for a,v in pairs(arg) do
@@ -100,21 +140,34 @@ function verdict_aggregate(v1, v2)
 	return v
 end
 -- redo what whould be done without orchestration
-function replay_execution_plan(ctx, desync, plan)
+function replay_execution_plan(desync, plan)
 	local verdict = VERDICT_PASS
 	for i=1,#plan do
-		if not payload_match_filter(desync.l7payload, plan[i].payload_filter) then
+		if cutoff_shim_check(desync) then
+			DLOG("orchestrator: not calling '"..desync.func_instance.."' because of voluntary cutoff")
+		elseif not payload_match_filter(desync.l7payload, plan[i].payload_filter) then
 			DLOG("orchestrator: not calling '"..desync.func_instance.."' because payload '"..desync.l7payload.."' does not match filter '"..plan[i].payload_filter.."'")
 		elseif not pos_check_range(desync, plan[i].range) then
 			DLOG("orchestrator: not calling '"..desync.func_instance.."' because pos "..pos_str(desync,plan[i].range.from).." "..pos_str(desync,plan[i].range.to).." is out of range '"..pos_range_str(plan[i].range).."'")
 		else
 			apply_execution_plan(desync, plan[i])
 			DLOG("orchestrator: executing '"..desync.func_instance.."'")
-			verdict = verdict_aggregate(verdict,_G[plan[i].func](ctx, desync))
+			verdict = verdict_aggregate(verdict,_G[plan[i].func](nil, desync))
 		end
 	end
 	return verdict
 end
+
+-- copy desync preserving lua_state
+function desync_copy(desync)
+	local dcopy = deepcopy(desync)
+	if desync.track then
+		-- preserve lua state
+		dcopy.track.lua_state = desync.track.lua_state
+	end
+	return dcopy
+end
+
 -- this function demonstrates how to stop execution of upcoming desync instances and take over their job
 -- this can be used, for example, for orchestrating conditional processing without modifying of desync functions code
 -- test case : nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-desync=desync_orchestrator_example --lua-desync=pass --lua-desync=pass
@@ -122,9 +175,9 @@ function desync_orchestrator_example(ctx, desync)
 	local plan = execution_plan(ctx)
 	if #plan>0 then
 		DLOG("orchestrator: taking over upcoming desync instances")
-		local desync_copy = deepcopy(desync)
+		local dcopy = desync_copy(desync)
 		execution_plan_cancel(ctx)
-		return replay_execution_plan(ctx, desync_copy, plan)
+		return replay_execution_plan(dcopy, plan)
 	end
 end
 
@@ -257,7 +310,7 @@ function var_debug(v)
 	local function dbg(v,level)
 		if type(v)=="table" then
 			for key, value in pairs(v) do
-				DLOG(string.rep(" ",2*level).."."..key)
+				DLOG(string.rep(" ",2*level).."."..tostring(key))
 				dbg(v[key],level+1)
 			end
 		elseif type(v)=="string" then
@@ -1010,10 +1063,10 @@ function direction_cutoff_opposite(ctx, desync, def)
 	local dir = desync.arg.dir or def or "out"
 	if dir=="out" then
 		-- cutoff in
-		instance_cutoff(ctx, false)
+		instance_cutoff_shim(ctx, desync, false)
 	elseif dir=="in" then
 		-- cutoff out
-		instance_cutoff(ctx, true)
+		instance_cutoff_shim(ctx, desync, true)
 	end
 end
 
@@ -1103,7 +1156,10 @@ end
 
 -- return hostname if present or ip address in text form otherwise
 function host_or_ip(desync)
-	return desync.hostname or (desync.dis.ip and ntop(desync.dis.ip) or desync.dis.ip6 and ntop(desync.dis.ip6))
+	if desync.track and desync.track.hostname then
+		return desync.track.hostname
+	end
+	return desync.target.ip and ntop(desync.target.ip) or desync.target.ip6 and ntop(desync.target.ip6)
 end
 
 function is_absolute_path(path)
@@ -1253,4 +1309,17 @@ function ipfrag2(dis, ipfrag_options)
 	end
 
 	return {dis1,dis2}
+end
+
+
+-- location is url compatible with Location: header
+-- hostname is original hostname
+function is_dpi_redirect(hostname, location)
+	local ds = dissect_url(location)
+	if ds.domain then
+		local sld1 = dissect_nld(hostname,2)
+		local sld2 = dissect_nld(ds.domain,2)
+		return sld2 and sld1~=sld2
+	end
+	return false
 end

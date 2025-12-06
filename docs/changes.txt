@@ -54,3 +54,5 @@ v0.4
 v0.5
 * nfqws2: u8add,u16add,u24add,u32add luacalls
 * nfqws2: abandon any arithmetics beyond 32bit (because lua 5.1 does not support 64 bit integers, store everything as double)
+* zapret-lib: http_reply, url and nld dissectors
+* zapret-auto: circular orchestrator
