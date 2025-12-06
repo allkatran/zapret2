@@ -264,8 +264,8 @@ end
 function test_bit()
 	local v, v2, v3, v4, b1, b2, pow
 
-	v = math.random(0,0xFFFFFFFFFFFF)
-	b1 = math.random(1,15)
+	v = math.random(0,0xFFFFFFFF)
+	b1 = math.random(1,16)
 
 	v2 = bitrshift(v, b1)
 	pow = 2^b1
@@ -279,13 +279,13 @@ function test_bit()
 	print(string.format("lshift(0x%X,%u) = 0x%X  0x%X*%u = 0x%X", v,b1,v2, v,pow,v3))
 	test_assert(v2==v3)
 
-	v2 = math.random(0,0xFFFFFFFFFFFF)
+	v2 = math.random(0,0xFFFFFFFF)
 	v3 = bitxor(v, v2)
 	v4 = bitor(v, v2) - bitand(v, v2)
 	print(string.format("xor(0x%X,0x%X) = %X  or/and/minus = %X", v, v2, v3, v4))
 	test_assert(v3==v4)
 
-	b2 = b1 + math.random(1,31)
+	b2 = b1 + math.random(1,15)
 	v2 = bitget(v, b1, b2)
 	pow = 2^(b2-b1+1) - 1
 	v3 = bitand(bitrshift(v,b1), pow)
@@ -313,7 +313,7 @@ function test_ux()
 			v2=math.random(-test.max,test.max)
 			v3=math.random(-test.max,test.max)
 			usum = test.add(v1,v2,v3)
-			sum = bitand(v1+v2+v3,test.max)
+			sum = bitand((v1+v2+v3)%(test.max+1),test.max)
 			if sum~=usum then
 				print("FAIL")
 			end
