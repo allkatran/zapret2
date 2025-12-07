@@ -86,7 +86,6 @@ function standard_failure_detector(desync, crec, options)
 	end
 
 	local trigger = false
-	local seq = pos_get(desync,'s')
 	if desync.outgoing then
 		if #desync.dis.payload>0 and options.retrans and (crec.retrans or 0)<options.retrans then
 			if not crec.uppos then crec.uppos=0 end
