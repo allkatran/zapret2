@@ -290,7 +290,7 @@ end
 -- nfqws1 : "--dpi-desync=syndata"
 -- standard args : fooling, rawsend, reconstruct, ipfrag
 -- arg : blob=<blob> - fake payload. must fit to single packet. no segmentation possible. default - 16 zero bytes.
--- arg : tls_mod=<list> - comma separated list of tls mods : rnd,rndsni,sni=<str>
+-- arg : tls_mod=<list> - comma separated list of tls mods : rnd,rndsni,sni=<str>. sni=%var is supported
 function syndata(ctx, desync)
 	if desync.dis.tcp then
 		if bitand(desync.dis.tcp.th_flags, TH_SYN + TH_ACK)==TH_SYN then
@@ -298,7 +298,7 @@ function syndata(ctx, desync)
 			dis.payload = blob(desync, desync.arg.blob, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00")
 			apply_fooling(desync, dis)
 			if desync.arg.tls_mod then
-				dis.payload = tls_mod(dis.payload, desync.arg.tls_mod, nil)
+				dis.payload = tls_mod_shim(desync, dis.payload, desync.arg.tls_mod, nil)
 			end
 			if b_debug then DLOG("syndata: "..hexdump_dlog(dis.payload)) end
 			if rawsend_dissect_ipfrag(dis, desync_opts(desync)) then
@@ -340,7 +340,7 @@ end
 -- nfqws1 : "--dpi-desync=fake"
 -- standard args : direction, payload, fooling, ip_id, rawsend, reconstruct, ipfrag
 -- arg : blob=<blob> - fake payload
--- arg : tls_mod=<list> - comma separated list of tls mods : rnd,rndsni,sni=<str>,dupsid,padencap
+-- arg : tls_mod=<list> - comma separated list of tls mods : rnd,rndsni,sni=<str>,dupsid,padencap . sni=%var is supported
 function fake(ctx, desync)
 	direction_cutoff_opposite(ctx, desync)
 	-- by default process only outgoing known payloads
@@ -351,7 +351,7 @@ function fake(ctx, desync)
 			end
 			local fake_payload = blob(desync, desync.arg.blob)
 			if desync.reasm_data and desync.arg.tls_mod then
-				fake_payload = tls_mod(fake_payload, desync.arg.tls_mod, desync.reasm_data)
+				fake_payload = tls_mod_shim(desync, fake_payload, desync.arg.tls_mod, desync.reasm_data)
 			end
 			-- check debug to save CPU
 			if b_debug then DLOG("fake: "..hexdump_dlog(fake_payload)) end
@@ -421,7 +421,7 @@ end
 -- arg : pos=<postmarker list> . position marker list. example : "1,host,midsld+1,-10"
 -- arg : seqovl=N . decrease seq number of the second segment in the original order by N and fill N bytes with pattern (default - all zero). N must be less than the first split pos.
 -- arg : seqovl_pattern=<blob> . override pattern
--- arg : blob=<blob> - use this data instead of desync.dis.payload
+-- arg : blob=<blob> - use this data instead of reasm_data
 -- arg : nodrop - do not drop current dissect
 function multidisorder(ctx, desync)
 	if not desync.dis.tcp then
@@ -600,7 +600,7 @@ end
 -- arg : pattern=<blob> . fill fake parts with this pattern
 -- arg : seqovl=N . decrease seq number of the first segment by N and fill N bytes with pattern (default - all zero)
 -- arg : seqovl_pattern=<blob> . override seqovl pattern
--- arg : blob=<blob> - use this data instead of desync.dis.payload
+-- arg : blob=<blob> - use this data instead of reasm_data
 -- arg : nodrop - do not drop current dissect
 function fakedsplit(ctx, desync)
 	if not desync.dis.tcp then

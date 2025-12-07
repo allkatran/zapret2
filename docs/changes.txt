@@ -66,3 +66,7 @@ v0.5.1
 
 * zapret-auto: separate failure detection logic
 * blockcheck2: fix broken http3 test
+
+v0.6
+
+* zapret-lib,zapret-antidpi: tls_mod_shim supports sni=%var subst
