@@ -62,6 +62,7 @@ v0.5
 * zapret-lib: instance_cutoff_shim
 * zapret-auto: circular orchestrator
 
-v0.6
+v0.5.1
 
 * zapret-auto: separate failure detection logic
+* blockcheck2: fix broken http3 test
