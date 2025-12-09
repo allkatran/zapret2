@@ -153,16 +153,16 @@ function plan_instance_execute(desync, verdict, instance)
 	end
 	return verdict
 end
-
--- redo what whould be done without orchestration
-function replay_execution_plan(desync, plan)
-	local verdict = VERDICT_PASS
-	for i=1,#plan do
-		verdict = plan_instance_execute(desync, verdict, plan[i])
-	end
-	return verdict
+function plan_instance_pop(desync)
+	return (desync.plan and #desync.plan>0) and table.remove(desync.plan, 1)
 end
-
+-- this approach allows nested orchestrators
+function orchestrate(ctx, desync)
+	if not desync.plan then
+		execution_plan_cancel(ctx)
+		desync.plan = execution_plan(ctx)
+	end
+end
 -- copy desync preserving lua_state
 function desync_copy(desync)
 	local dcopy = deepcopy(desync)
@@ -172,18 +172,24 @@ function desync_copy(desync)
 	end
 	return dcopy
 end
-
+-- redo what whould be done without orchestration
+function replay_execution_plan(desync)
+	local dcopy = desync_copy(desync)
+	local verdict = VERDICT_PASS
+	while true do
+		local instance = plan_instance_pop(dcopy)
+		if not instance then break end
+		verdict = plan_instance_execute(dcopy, verdict, instance)
+	end
+	return verdict
+end
 -- this function demonstrates how to stop execution of upcoming desync instances and take over their job
 -- this can be used, for example, for orchestrating conditional processing without modifying of desync functions code
 -- test case : nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-desync=desync_orchestrator_example --lua-desync=pass --lua-desync=pass
 function desync_orchestrator_example(ctx, desync)
-	local plan = execution_plan(ctx)
-	if #plan>0 then
-		DLOG("orchestrator: taking over upcoming desync instances")
-		local dcopy = desync_copy(desync)
-		execution_plan_cancel(ctx)
-		return replay_execution_plan(dcopy, plan)
-	end
+	DLOG("orchestrator: taking over upcoming desync instances")
+	orchestrate(ctx, desync)
+	return replay_execution_plan(desync)
 end
 
 -- these functions duplicate range check logic from C code

@@ -166,11 +166,11 @@ end
 -- args for failure detector - see standard_failure_detector or your own detector
 -- test case: nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-init=@zapret-auto.lua --in-range=-s1 --lua-desync=circular --lua-desync=argdebug:strategy=1 --lua-desync=argdebug:strategy=2
 function circular(ctx, desync)
-	local function count_strategies(hrec, plan)
+	local function count_strategies(hrec)
 		if not hrec.ctstrategy then
 			local uniq={}
 			local n=0
-			for i,instance in pairs(plan) do
+			for i,instance in pairs(desync.plan) do
 				if instance.arg.strategy then
 					n = tonumber(instance.arg.strategy)
 					if not n or n<1 then
@@ -193,17 +193,11 @@ function circular(ctx, desync)
 		end
 	end
 
-	-- take over orchestration. prevent further instance execution in case of error
-	execution_plan_cancel(ctx)
+	-- take over execution. prevent further instance execution in case of error
+	orchestrate(ctx, desync)
 
 	if not desync.track then
 		DLOG_ERR("circular: conntrack is missing but required")
-		return
-	end
-
-	local plan = execution_plan(ctx)
-	if #plan==0 then
-		DLOG("circular: need some desync instances or useless")
 		return
 	end
 
@@ -213,11 +207,10 @@ function circular(ctx, desync)
 		return
 	end
 
-	count_strategies(hrec, plan)
+	count_strategies(hrec)
 	if hrec.ctstrategy==0 then
 		error("circular: add strategy=N tag argument to each following instance ! N must start from 1 and increment")
 	end
-
 	if not hrec.nstrategy then
 		DLOG("circular: start from strategy 1")
 		hrec.nstrategy = 1
@@ -252,9 +245,11 @@ function circular(ctx, desync)
 
 	DLOG("circular: current strategy "..hrec.nstrategy)
 	local dcopy = desync_copy(desync)
-	for i=1,#plan do
-		if plan[i].arg.strategy and tonumber(plan[i].arg.strategy)==hrec.nstrategy then
-			verdict = plan_instance_execute(dcopy, verdict, plan[i])
+	while true do
+		local instance = plan_instance_pop(desync)
+		if not instance then break end
+		if instance.arg.strategy and tonumber(instance.arg.strategy)==hrec.nstrategy then
+			verdict = plan_instance_execute(dcopy, verdict, instance)
 		end
 	end
 
