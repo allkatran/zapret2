@@ -126,17 +126,17 @@ end
 
 
 -- applies # and $ prefixes. #var means var length, %var means var value
-function apply_arg_prefix(arg)
-	for a,v in pairs(arg) do
+function apply_arg_prefix(desync)
+	for a,v in pairs(desync.arg) do
 		local c = string.sub(v,1,1)
-		if v=='#' then
-			arg[a] = #_G[string.sub(v,2)]
-		elseif v=='%' then
-			arg[a] = _G[string.sub(v,2)]
-		elseif v=='\\' then
+		if c=='#' then
+			desync.arg[a] = #blob(desync,string.sub(v,2))
+		elseif c=='%' then
+			desync.arg[a] = blob(desync,string.sub(v,2))
+		elseif c=='\\' then
 			c = string.sub(v,2,2);
 			if c=='#' or c=='%' then
-				arg[a] = string.sub(v,2)
+				desync.arg[a] = string.sub(v,2)
 			end
 		end
 	end
@@ -147,7 +147,7 @@ function apply_execution_plan(desync, instance)
 	desync.func_n = instance.func_n
 	desync.func_instance = instance.func_instance
 	desync.arg = deepcopy(instance.arg)
-	apply_arg_prefix(desync.arg)
+	apply_arg_prefix(desync)
 end
 -- produce resulting verdict from 2 verdicts
 function verdict_aggregate(v1, v2)

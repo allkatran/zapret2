@@ -80,3 +80,7 @@ v0.6.1
 * zapret-lib, zapret-auto: condition and stopif orchestrators
 * zapret-lib: detect_payload_str - sample lua payload detector
 * blockcheck2: unterminated string fix
+
+v0.6.2
+
+* nfqws2, zapret-lib : fix non-working % and # arg substitution under orchestrator

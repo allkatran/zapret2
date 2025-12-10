@@ -841,7 +841,7 @@ static int luacall_execution_plan(lua_State *L)
 			range = ctx->incoming ? &func->range_in : &func->range_out;
 			lua_pushinteger(params.L, n - ctx->func_n);
 			lua_createtable(params.L, 0, 6);
-			lua_pushf_args(&func->args, -1);
+			lua_pushf_args(&func->args, -1, false);
 			lua_pushf_str("func", func->func);
 			lua_pushf_int("func_n", ctx->func_n);
 			lua_pushf_str("func_instance", instance);
@@ -1320,7 +1320,7 @@ void lua_pushf_ctrack(const t_ctrack *ctrack, const t_ctrack_position *pos)
 	LUA_STACK_GUARD_LEAVE(params.L, 0)
 }
 
-void lua_pushf_args(const struct str2_list_head *args, int idx_desync)
+void lua_pushf_args(const struct str2_list_head *args, int idx_desync, bool subst_prefix)
 {
 	// var=val - pass val string
 	// var=%val - subst 'val' blob
@@ -1341,17 +1341,22 @@ void lua_pushf_args(const struct str2_list_head *args, int idx_desync)
 	{
 		var = arg->str1;
 		val = arg->str2 ? arg->str2 : "";
-		if (val[0]=='\\' && (val[1]=='%' || val[1]=='#'))
-			// escape char
-			lua_pushf_str(var, val+1);
-		else if (val[0]=='%')
-			lua_pushf_blob(idx_desync, var, val+1);
-		else if (val[0]=='#')
+		if (subst_prefix)
 		{
-			lua_push_blob(idx_desync, val+1);
-			lua_Integer len = lua_rawlen(params.L, -1);
-			lua_pop(params.L,1);
-			lua_pushf_int(var, len);
+			if (val[0]=='\\' && (val[1]=='%' || val[1]=='#'))
+				// escape char
+				lua_pushf_str(var, val+1);
+			else if (val[0]=='%')
+				lua_pushf_blob(idx_desync, var, val+1);
+			else if (val[0]=='#')
+			{
+				lua_push_blob(idx_desync, val+1);
+				lua_Integer len = lua_rawlen(params.L, -1);
+				lua_pop(params.L,1);
+				lua_pushf_int(var, len);
+			}
+			else
+				lua_pushf_str(var, val);
 		}
 		else
 			lua_pushf_str(var, val);
