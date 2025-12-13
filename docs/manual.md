@@ -841,7 +841,7 @@ nfqws2 следит за превышением верхней границы с
 
 ### Структура таблицы desync
 
-Лучше всего изучать структуру desync по ее реальному содержиому, выполняя тестовую desync функцию pktdebug из zapret-lib.lua.
+Лучше всего изучать структуру desync по ее реальному содержимому, выполняя тестовую desync функцию pktdebug из zapret-lib.lua.
 
 <details> 
   <summary>Пакет http-req от запроса по ipv6 к http://one.one.one.one</summary>
