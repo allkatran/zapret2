@@ -105,3 +105,4 @@ v0.7.2
 * zapret-lib: fix broken is_retransmission()
 * zapret-auto: add success detector logic
 * nfqws2: clean lua cutoff on profile change
+* zapret-auto: separate hostkey function
