@@ -298,7 +298,7 @@ function pos_str(desync, pos)
 	return pos.mode..pos_get(desync, pos.mode)
 end
 function is_retransmission(desync)
-	return desync.track and desync.track.tcp and 0==bitand(u32add(desync.track.tcp.uppos_orig_prev, -desync.track.tcp.pos_orig), 0x80000000)
+	return desync.track and desync.track.pos.direct.tcp and 0==bitand(u32add(desync.track.pos.direct.tcp.uppos_prev, -desync.track.pos.direct.tcp.pos), 0x80000000)
 end
 
 -- prepare standard rawsend options from desync

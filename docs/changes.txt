@@ -99,3 +99,8 @@ v0.7.1
 * nfqws2: autohostlist reset fail counter if udp_in > threshold
 * nfqws2: reduced default retrans maxseq to 32768
 * nfqws2: solved inability to get SSID using nl80211 on kernels 5.19+
+
+v0.7.2
+
+* zapret-lib: fix broken is_retransmission()
+* zapret-auto: add success detector logic

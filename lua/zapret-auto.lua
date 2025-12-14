@@ -1,7 +1,9 @@
 -- standard automation/orchestration code
 -- this is related to making dynamic strategy decisions without rewriting or altering strategy function code
 -- orchestrators can decide which instances to call or not to call or pass them dynamic arguments
--- failure detectors test potential block conditions for orchestrators
+-- failure and success detectors test potential block conditions for orchestrators
+
+-- per-host storage
 -- arg: reqhost - require hostname, do not work with ip
 -- arg: key - a string - table name inside autostate table. to allow multiple orchestrator instances to use single host storage
 function automate_host_record(desync)
@@ -28,6 +30,7 @@ function automate_host_record(desync)
 	end
 	return autostate[askey][hostkey]
 end
+-- per-connection storage
 function automate_conn_record(desync)
 	if not desync.track.lua_state.automate then
 		desync.track.lua_state.automate = {}
@@ -65,6 +68,13 @@ function automate_failure_counter(hrec, crec, fails, maxtime)
 	end
 	return false
 end
+-- resets failure counter if it has started counting
+function automate_failure_counter_reset(hrec)
+	if hrec.failure_counter then
+		DLOG("automate: failure counter reset")
+		hrec.failure_counter = nil
+	end
+end
 
 -- location is url compatible with Location: header
 -- hostname is original hostname
@@ -85,32 +95,24 @@ end
 --   incoming http redirection
 --   outgoing retransmissions
 --   udp too much out with too few in
--- arg: seq=<rseq> - tcp: if packet is beyond this relative sequence number treat this connection as successful. default is 64K
+-- arg: maxseq=<rseq> - tcp: test retransmissions only within this relative sequence. default is 32K
 -- arg: retrans=N - tcp: retrans count threshold. default is 3
--- arg: rst=<rseq> - tcp: maximum relative sequence number to treat incoming RST as DPI reset. default is 1
+-- arg: inseq=<rseq> - tcp: maximum relative sequence number to treat incoming RST as DPI reset. default is 4K
 -- arg: no_http_redirect - tcp: disable http_reply dpi redirect trigger
 -- arg: udp_out - udp: >= outgoing udp packets. default is 4
 -- arg: udp_in - udp: with <= incoming udp packets. default is 1
-function standard_failure_detector(desync, crec, arg)
-	if crec.nocheck then return false end
-
-	local seq_rst = tonumber(arg.rst) or 1
-	local retrans = tonumber(arg.retrans) or 3
-	local maxseq = tonumber(arg.seq) or 0x10000
-	local udp_in = tonumber(arg.udp_in) or 1
-	local udp_out = tonumber(arg.udp_out) or 4
+function standard_failure_detector(desync, crec)
+	local inseq = tonumber(desync.arg.inseq) or 4096
+	local retrans = tonumber(desync.arg.retrans) or 3
+	local maxseq = tonumber(desync.arg.maxseq) or 32768
+	local udp_in = tonumber(desync.arg.udp_in) or 1
+	local udp_out = tonumber(desync.arg.udp_out) or 4
 
 	local trigger = false
 	if desync.dis.tcp then
 		local seq = pos_get(desync,'s')
-		if maxseq and seq>maxseq then
-			DLOG("standard_failure_detector: s"..seq.." is beyond s"..maxseq..". treating connection as successful")
-			crec.nocheck = true
-			return false
-		end
-
 		if desync.outgoing then
-			if #desync.dis.payload>0 and retrans and (crec.retrans or 0)<retrans then
+			if #desync.dis.payload>0 and retrans and maxseq>0 and seq<=maxseq and (crec.retrans or 0)<retrans then
 				if is_retransmission(desync) then
 					crec.retrans = crec.retrans and (crec.retrans+1) or 1
 					DLOG("standard_failure_detector: retransmission "..crec.retrans.."/"..retrans)
@@ -118,16 +120,16 @@ function standard_failure_detector(desync, crec, arg)
 				end
 			end
 		else
-			if seq_rst and bitand(desync.dis.tcp.th_flags, TH_RST)~=0 then
-				trigger = seq<=seq_rst
+			if inseq>0 and bitand(desync.dis.tcp.th_flags, TH_RST)~=0 then
+				trigger = seq<=inseq
 				if b_debug then
 					if trigger then
-						DLOG("standard_failure_detector: incoming RST s"..seq.." in range s"..seq_rst)
+						DLOG("standard_failure_detector: incoming RST s"..seq.." in range s"..inseq)
 					else
-						DLOG("standard_failure_detector: not counting incoming RST s"..seq.." beyond s"..seq_rst)
+						DLOG("standard_failure_detector: not counting incoming RST s"..seq.." beyond s"..inseq)
 					end
 				end
-			elseif not arg.no_http_redirect and desync.l7payload=="http_reply" and desync.track.hostname then
+			elseif not desync.arg.no_http_redirect and desync.l7payload=="http_reply" and desync.track.hostname then
 				local hdis = http_dissect_reply(desync.dis.payload)
 				if hdis and (hdis.code==302 or hdis.code==307) and hdis.headers.location and hdis.headers.location then
 					trigger = is_dpi_redirect(desync.track.hostname, hdis.headers.location.value)
@@ -143,13 +145,13 @@ function standard_failure_detector(desync, crec, arg)
 		end
 	elseif desync.dis.udp then
 		if desync.outgoing then
-			if udp_out then
-				local udp_in = udp_in or 0
-				trigger = desync.track.pos.direct.pcounter>=udp_out and desync.track.pos.reverse.pcounter<=udp_in
+			if udp_out>0 then
+				local pos_out = pos_get(desync,'n',false)
+				local pos_in = pos_get(desync,'n',true)
+				trigger = pos_out>=udp_out and pos_in<=udp_in
 				if trigger then
-					crec.nocheck = true
 					if b_debug then
-						DLOG("standard_failure_detector: udp_out "..desync.track.pos.direct.pcounter..">="..udp_out.." udp_in "..desync.track.pos.reverse.pcounter.."<="..udp_in)
+						DLOG("standard_failure_detector: udp_out "..pos_out..">="..udp_out.." udp_in "..pos_in.."<="..udp_in)
 					end
 				end
 			end
@@ -158,16 +160,104 @@ function standard_failure_detector(desync, crec, arg)
 	return trigger
 end
 
+-- standard success detector
+-- success means previous failures were temporary and counter should be reset
+-- detected successes:
+--   tcp: outgoing seq is beyond 'maxseq' and maxseq>0
+--   tcp: incoming seq is beyond 'inseq' and inseq>0
+--   udp: incoming packets count > `udp_in` and `udp_out`>0
+-- arg: maxseq=<rseq> - tcp: success if outgoing relative sequence is beyond this value. default is 32K
+-- arg: inseq=<rseq> - tcp: success if incoming relative sequence is beyond this value. default is 4K
+-- arg: udp_out - udp : must be nil or >0 to test udp_in
+-- arg: udp_in - udp: if number if incoming packets > udp_in it means success
+function standard_success_detector(desync, crec)
+	local inseq = tonumber(desync.arg.inseq) or 4096
+	local maxseq = tonumber(desync.arg.maxseq) or 32768
+	local udp_in = tonumber(desync.arg.udp_in) or 1
+	local udp_out = tonumber(desync.arg.udp_out) or 4
+
+	if desync.dis.tcp then
+		local seq = pos_get(desync,'s')
+		if desync.outgoing then
+			if maxseq>0 and seq>maxseq then
+				DLOG("standard_success_detector: outgoing s"..seq.." is beyond s"..maxseq..". treating connection as successful")
+				return true
+			end
+		else
+			if inseq>0 and seq>inseq then
+				DLOG("standard_success_detector: incoming s"..seq.." is beyond s"..inseq..". treating connection as successful")
+				return true
+			end
+		end
+	elseif desync.dis.udp then
+		if not desync.outgoing then
+			local pos = pos_get(desync,'n')
+			if udp_out>0 and pos>udp_in then
+				if b_debug then
+					DLOG("standard_success_detector: udp_in "..pos..">"..udp_in)
+				end
+				return true
+			end
+		end
+	end
+
+	return false
+end
+
+-- calls success and failure detectors
+-- resets counter if success is detected
+-- increases counter if failure is detected
+-- returns true if failure counter exceeds threshold
+function failure_check(desync, hrec, crec)
+	if crec.nocheck then return false end
+
+	local failure_detector, success_detector
+	if desync.arg.failure_detector then
+		if type(_G[desync.arg.failure_detector])~="function" then
+			error("success_failure_check: invalid failure detector function '"..desync.arg.failure_detector.."'")
+		end
+		failure_detector = _G[desync.arg.failure_detector]
+	else
+		failure_detector = standard_failure_detector
+	end
+	if desync.arg.success_detector then
+		if type(_G[desync.arg.success_detector])~="function" then
+			error("success_failure_check: invalid success detector function '"..desync.arg.success_detector.."'")
+		end
+		success_detector = _G[desync.arg.success_detector]
+	else
+		success_detector = standard_success_detector
+	end
+
+	if success_detector(desync, crec) then
+		crec.nocheck = true
+		DLOG("failure_check: success detected")
+		automate_failure_counter_reset(hrec)
+		return false
+	end
+	if failure_detector(desync, crec) then
+		crec.nocheck = true
+		DLOG("failure_check: failure detected")
+		local fails = tonumber(desync.arg.fails) or 3
+		local maxtime = tonumber(desync.arg.time) or 60
+		return automate_failure_counter(hrec, crec, fails, maxtime)
+	end
+
+	return false
+end
+
+
 -- circularily change strategy numbers when failure count reaches threshold ('fails')
--- works with tcp only
 -- this orchestrator requires redirection of incoming traffic to cache RST and http replies !
 -- each orchestrated instance must have strategy=N arg, where N starts from 1 and increment without gaps
 -- if 'final' arg is present in an orchestrated instance it stops rotation
 -- arg: fails=N - failture count threshold. default is 3
 -- arg: time=<sec> - if last failure happened earlier than `maxtime` seconds ago - reset failure counter. default is 60.
 -- arg: reqhost - pass with no tampering if hostname is unavailable
--- arg: detector - failure detector function name.
+-- arg: success_detector - success detector function name
+-- arg: failure_detector - failure detector function name
 -- args for failure detector - see standard_failure_detector or your own detector
+-- args for success detector - see standard_success_detector or your own detector
 -- test case: nfqws2 --qnum 200 --debug --lua-init=@zapret-lib.lua --lua-init=@zapret-auto.lua --in-range=-s1 --lua-desync=circular --lua-desync=argdebug:strategy=1 --lua-desync=argdebug:strategy=2
 function circular(ctx, desync)
 	local function count_strategies(hrec)
@@ -223,26 +313,11 @@ function circular(ctx, desync)
 	local verdict = VERDICT_PASS
 	if hrec.final~=hrec.nstrategy then
 		local crec = automate_conn_record(desync)
-		local fails = tonumber(desync.arg.fails) or 3
-		local maxtime = tonumber(desync.arg.time) or 60
-		local failure_detector
-		if desync.arg.detector then
-			if type(_G[desync.arg.detector])~="function" then
-				error("circular: invalid failure detector function '"..desync.arg.detector.."'")
-			end
-			failure_detector = _G[desync.arg.detector]
-		else
-			failure_detector = standard_failure_detector
-		end
-		if failure_detector(desync,crec,desync.arg) then
-			-- failure happened. count failures.
-			if automate_failure_counter(hrec, crec, fails, maxtime) then
-				-- counter reaches threshold. circular strategy change
-				hrec.nstrategy = (hrec.nstrategy % hrec.ctstrategy) + 1
-				DLOG("circular: rotate strategy to "..hrec.nstrategy)
-				if hrec.nstrategy == hrec.final then
-					DLOG("circular: final strategy "..hrec.final.." reached. will rotate no more.")
-				end
+		if failure_check(desync, hrec, crec) then
+			hrec.nstrategy = (hrec.nstrategy % hrec.ctstrategy) + 1
+			DLOG("circular: rotate strategy to "..hrec.nstrategy)
+			if hrec.nstrategy == hrec.final then
+				DLOG("circular: final strategy "..hrec.final.." reached. will rotate no more.")
 			end
 		end
 	end
