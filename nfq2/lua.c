@@ -3001,10 +3001,11 @@ static void lua_init_const(void)
 		{"IP_OFFMASK",IP_OFFMASK},
 		{"IP_FLAGMASK",IP_RF|IP_DF|IP_MF},
 		{"IPTOS_ECN_MASK",IPTOS_ECN_MASK},
+		{"IPTOS_ECN_NOT_ECT",0},
 		{"IPTOS_ECN_ECT1",IPTOS_ECN_ECT1},
 		{"IPTOS_ECN_ECT0",IPTOS_ECN_ECT0},
 		{"IPTOS_ECN_CE",IPTOS_ECN_CE},
-		{"IPTOS_DSCP_MASK",0xFC},
+		{"IPTOS_DSCP_MASK",0xF0},
 		{"IP6F_MORE_FRAG",0x0001}, // in ip6.h it's defined depending of machine byte order
 
 		{"IPPROTO_IP",IPPROTO_IP},
