@@ -1732,17 +1732,17 @@ function resolve_range(blob,l7payload_type,marker_list[,strict,zero_based_pos])
 ### Управление выполнением инстансов
 
 ```
-function instance_cutoff(ctx, direction)
+function instance_cutoff(ctx, outgoing)
 ```
 
 Добровольное само-отсечение инстанса по выбранному направлению.
 Инстанс перестает вызываться в рамках текущего потока.
-* direction = true - исходящее направление
-* direction = false - входящее направление
-* direction = nil - оба направления
+* outgoing = true - исходящее направление
+* outgoing = false - входящее направление
+* outgoing = nil - оба направления
 
 ```
-function instance_cutoff(ctx, direction)
+function instance_cutoff(ctx, outgoing)
 ```
 
 Аналогично `instance_cutoff`, но от потока отсекается весь профиль.
