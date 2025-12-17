@@ -743,11 +743,11 @@ BOOL JobSandbox()
 
 
 #define WINDIVERT_DEVICE_NAME "WinDivert"
-static bool b_isandbox_set = false;
+static bool b_sandbox_set = false;
 bool win_sandbox(void)
 {
 	// there's no way to return privs
-	if (!b_isandbox_set)
+	if (!b_sandbox_set)
 	{
 		if (!RemoveTokenPrivs())
 			return FALSE;
@@ -759,8 +759,7 @@ bool win_sandbox(void)
 			return false;
 		if (!JobSandbox())
 			return false;
-		// for LUA code to find where to store files
-		b_isandbox_set = true;
+		b_sandbox_set = true;
 	}
 	return true;
 }
