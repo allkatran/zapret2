@@ -2354,6 +2354,85 @@ function payload_check(desync, def)
 * payload_match_filter проверяет соответствие l7payload списку l7payload_filter или def, если l7payload_filter=nil. Если оба nil - список берется как "known".
 * payload_check вызывает `payload_match_filter(desync.l7payload, desync.arg.payload, def)`
 
+## Оркестрация
+
+В эту группу функций входят функции поддержки процесса оркестрации и прокладки.
+Прокладки - это дублеры функций C кода для ситуации, когда у нас нет контекста ctx для связи с C кодом.
+После начала оркестрации все дальнейшие инстансы вызываются оркестратором или вложенными оркестраторами.
+Последний ctx, который доступен, это ctx первого оркестратора. Если его передавать другим инстансам,
+они будут действовать от имени оркестратора, а не от своего, поэтому им следует передавать ctx=nil.
+После отмены execution plan C код не обслуживает последующие инстансы и не выдает на них ctx. Поэтому если нужно продолжить
+выполнение в стандартном стиле, необходимы дублирующие механизмы instance cutoff и фильтров range и payload.
+
+Чтобы функции `--lua-desync` прозрачно работали под оркестрацией, необходимо использовать стандартные прокладки вместо прямых вызовов C функций,
+берущих ctx. Чтобы корректно работали вложенные оркестраторы, нужно придерживаться стандартной схемы хранения execution plan в desync.plan
+и пользоваться описанными ниже функциями-хелперами.
+
+```
+function instance_cutoff_shim(ctx, desync, dir)
+```
+
+Выполняет обычный instance cutoff по направлению dir, если ctx присутствует, иначе cutoff через дублирующий механизм,
+состояние которого хранится в desync.track.lua_state.
+
+```
+function cutoff_shim_check(desync)
+```
+
+Проверяет состояние instance cutoff для desync.func_instance по направлению desync.outgoing.
+
+```
+function apply_arg_prefix(desync)
+```
+
+Выполняет подстановку значений аргументов из desync.arg, начинающихся с `%` и `#`.
+
+```
+function apply_execution_plan(desync, instance)
+```
+
+Копирует в desync идентификацию инстанса и его аргументы из элемента execution plan 'instance',
+тем самым воссоздает состояние desync, как если бы `instance` был вызван напрямую C кодом.
+execution plan выдается C функцией `execution_plan()` как массив, элементами которого являются `instance`.
+
+```
+function verdict_aggregate(v1, v2)
+```
+
+Аггрегация вердиктов v1 и v2. VERDICT_MODIFY замещает VERDICT_PASS, VERDICT_DROP замещает их обоих.
+
+```
+function plan_instance_execute(desync, verdict, instance)
+```
+
+Выполняет элемент execution plan `instance` с учетом текущего вердикта verdict.
+Возвращает аггрегацию текущего вердикта и вердикта `instance`.
+
+```
+function plan_instance_pop(desync)
+```
+
+Берет, удаляет и возвращает первый элемент execution plan из desync.plan. Если элементов нет - возвращает nil.
+
+```
+function plan_clear(desync)
+```
+
+Очищает execution plan в desync.plan - удаляет все `instance`.
+
+```
+function orchestrate(ctx, desync)
+```
+
+Если оркестратор - первый, т.е. присутствует ctx, забирает execution plan и помещает его в desync.plan, а потом выполняет `execution_plan_cancel()`.
+Если ctx=nil - не делает ничего. Считается, что план уже находится в desync.plan.
+
+```
+function replay_execution_plan(desync)
+```
+
+Выполняет весь execution plan из desync.plan.
+
 
 # Библиотека программ атаки на DPI zapret-antidpi.lua
 
