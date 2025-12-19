@@ -21,7 +21,7 @@ pktws_check_http3()
 	done
 
 	[ "$IPV" = 6 ] && {
-		for fool in $FOOLINGS6_UDP; do
+		for fool in ip6_hopbyhop ip6_destopt ip6_hopbyhop:ip6_destopt; do
 			pktws_curl_test_update $1 $2 $PAYLOAD --lua-desync=send:$fool --lua-desync=drop
 		done
 	}
