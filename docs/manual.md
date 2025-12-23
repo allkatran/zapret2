@@ -439,6 +439,7 @@ MULTI-STRATEGY:
  --hostlist-auto-fail-threshold=<int>                   ; параметр автолиста : количество неудач подряд для занесения в лист. по умолчанию 3
  --hostlist-auto-fail-time=<int>                        ; параметр автолиста : максимальное время между неудачами без сброса счетчика. по умолчанию 60 секунд
  --hostlist-auto-retrans-threshold=<int>                ; параметр автолиста : количество tcp ретрансмиссий в одном сеансе для фиксации неудачи. по умолчанию 3
+ --hostlist-auto-retrans-reset=[0|1]                    ; параметр автолиста : посылать RST ретрансмиттеру, чтобы прекратить долгое ожидание. по умолчанию 1
  --hostlist-auto-retrans-maxseq=<int>                   ; параметр автолиста : исходящий relative sequence, после которого детект неудачи прекращается. по умолчанию 32768
  --hostlist-auto-incoming-maxseq=<int>                  ; параметр автолиста : входящий relative sequence, после которого детект неудачи прекращается, а счетчик сбрасывается. по умолчанию 4096
  --hostlist-auto-udp-out=<int>                          ; параметр автолиста : условие неудачи udp : количество исходящих пакетов больше или равно значению. по умолчанию 4
@@ -584,7 +585,7 @@ nfqws2 <глобальные_параметры>
 
 Детектор срабатывает только при наличии имени хоста. Неудачей считается :
 
-* tcp : происходит не менее `--hostlist-auto-retrans-threshold` ретрансмиссий в пределах исходящего relative sequence `--hostlist-auto-retrans-maxseq`
+* tcp : происходит не менее `--hostlist-auto-retrans-threshold` ретрансмиссий в пределах исходящего relative sequence `--hostlist-auto-retrans-maxseq`. если `--hostlist-auto-retrans-reset=1`, ретрансмиттеру шлется RST, чтобы он прекратил попытки достучаться (это может быть очень долго).
 * tcp : приходит RST в пределах входящего relative sequence от 1 до `--hostlist-auto-incoming-maxseq`
 * tcp : принят пейлоад `http_reply` и http ответ является переадресацией 302 или 307 на абсолютный URL с доменом 2 уровня, не совпадающим с доменом 2 уровня хоста.
 * udp : ушло не менее `--hostlist-auto-udp-out` пакетов, пришло не более `--hostlist-auto-udp-in` пакетов. Эта ситуация означает, что клиент шлет запросы, а сервер на них не отвечает или отвечает меньше, чем должен по протоколу.
@@ -2462,6 +2463,14 @@ function wsize_rewrite(dis, arg)
 * arg: scale - scale factor
 * возвращает true, если какое-либо изменение было произведено
 
+### dis_reverse
+
+```
+function dis_reverse(dis)
+```
+
+Поменять местами ip адреса и порты src/dst и seq/ack.
+
 ## Отсылка
 
 Следующие функции могут брать несколько блоков описанных выше опций, каждый из которых представлен полем параметра options.
@@ -3281,6 +3290,7 @@ function standard_failure_detector(desync, crec)
 * crec - [потоковое хранилище](#automate_conn_record)
 * arg: maxseq - считать ретрансмиссии в пределах исходящих relative sequence от 1 до maxseq. По умолчанию - 32768.
 * arg: retrans - считать неудачей не менее retrans ретрансмиссий. По умолчанию - 3.
+* arg: reset - посылать ретрансмиттеру RST, чтобы прекратить долгое ожидание
 * arg: inseq - считать неудачей RST и http redirect в пределах входящих relative sequence от 1 до inseq. По умолчанию - 4096.
 * arg: no_rst - не определять RST как неудачу
 * arg: no_http_redirect - не определять http redirect как неудачу
@@ -3781,7 +3791,7 @@ nfqws2 может работать и самостоятельно без скр
 | IPSET_HOOK | скрипт, который получает имя ipset в $1, выдает в stdout список ip, и они добавляются в ipset |
 | IP2NET_OPT4<br>IP2NET_OPT6 | настройки ip2net для скриптов получения ip листов |
 | MDIG_THREADS | количество потоков mdig. используется при ресолвинге хостлистов |
-| AUTOHOSTLIST_INCOMING_MAXSEQ<br>AUTOHOSTLIST_RETRANS_MAXSEQ<br>AUTOHOSTLIST_RETRANS_THRESHOLD<br>AUTOHOSTLIST_FAIL_THRESHOLD<br>AUTOHOSTLIST_FAIL_TIME<br>AUTOHOSTLIST_UDP_IN<br>AUTOHOSTLIST_UDP_OUT | параметры [автохостлистов](#детектор-неудач-автохостлистов) |
+| AUTOHOSTLIST_INCOMING_MAXSEQ<br>AUTOHOSTLIST_RETRANS_MAXSEQ<br>AUTOHOSTLIST_RETRANS_THRESHOLD<br>AUTOHOSTLIST_RETRANS_RESET<br>AUTOHOSTLIST_FAIL_THRESHOLD<br>AUTOHOSTLIST_FAIL_TIME<br>AUTOHOSTLIST_UDP_IN<br>AUTOHOSTLIST_UDP_OUT | параметры [автохостлистов](#детектор-неудач-автохостлистов) |
 | AUTOHOSTLIST_DEBUGLOG | включение autohostlist debug log. лог пишется в `ipset/zapret-hosts-auto-debug.log` |
 | GZIP_LISTS | применять ли сжатие gzip для генерируемых хост и ip листов |
 | DESYNC_MARK | марк-бит для предотвращения зацикливания |
