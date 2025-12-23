@@ -122,7 +122,8 @@ function standard_detector_defaults(arg)
 		udp_in = tonumber(arg.udp_in) or 1,
 		udp_out = tonumber(arg.udp_out) or 4,
 		no_http_redirect = arg.no_http_redirect,
-		no_rst = arg.no_rst
+		no_rst = arg.no_rst,
+		reset = arg.reset
 	}
 end
 
@@ -152,7 +153,7 @@ function standard_failure_detector(desync, crec)
 					crec.retrans = crec.retrans and (crec.retrans+1) or 1
 					DLOG("standard_failure_detector: retransmission "..crec.retrans.."/"..arg.retrans)
 					trigger = crec.retrans>=arg.retrans
-					if trigger and desync.arg.reset then
+					if trigger and arg.reset then
 						local dis = deepcopy(desync.dis)
 						dis.payload = nil
 						dis_reverse(dis)
