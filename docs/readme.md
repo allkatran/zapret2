@@ -306,6 +306,8 @@ nfqws2 --lua-desync=send:ipfrag:ipfrag_pos_udp=8 --lua-desync=drop
 
 Почему именно `-d10` ? Чтобы хватило для отработки большинства вариантов стратегий, учитывая возможные ретрансмиссии и плохую связь. В winws2 по умолчанию включен параметр `--wf-tcp-empty=0`. Он блокирует перехват пустых пакетов с ACK, что позволяет примерно в 2 раза сэкономить на процессоре при интенсивных скачиваниях. Пустые ACK в большинстве стратегий не нужны. Но это же и ломает счетчик "n" - он не будет показывать реальное количество пакетов по соединению. Счетчик "d" работать будет как надо.
 
+Почему нет "-d10" на udp ? Потому что используется windivert фильтр на пейлоад. Счетчики будут считать не реальное количество пакетов в потоке, а количество перехваченных с отфильтрованными пейлоадами.
+
 Так же везде расставлены фильтры по payload type. Отчасти так же с целью сократить вызовы LUA даже в пределах первых 10 пакетов с данными.
 С другой стороны, даже при совпадении протокола соединения (`--filter-l7`) может пробежать не интересующий нас пейлоад.
 По умолчанию многие функции из `zapret-antidpi.lua` реагируют только на известные типы пейлоада, но не на конкретные, а на любые известные.
@@ -359,17 +361,14 @@ start "zapret: http,https,quic" /min "%~dp0winws2.exe" ^
    --lua-desync=multidisorder:pos=midsld ^
   --new ^
 --filter-udp=443 --filter-l7=quic --hostlist="%~dp0files\list-youtube.txt" ^
-  --out-range=-d10 ^
   --payload=quic_initial ^
    --lua-desync=fake:blob=quic_google:repeats=11 ^
   --new ^
 --filter-udp=443 --filter-l7=quic ^
-  --out-range=-d10 ^
   --payload=quic_initial ^
    --lua-desync=fake:blob=fake_default_quic:repeats=11 ^
   --new ^
 --filter-l7=wireguard,stun,discord ^
-  --out-range=-d10 ^
   --payload=wireguard_initiation,wireguard_cookie,stun,discord_ip_discovery ^
    --lua-desync=fake:blob=0x00000000000000000000000000000000:repeats=2
 ```
