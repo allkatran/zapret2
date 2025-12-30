@@ -2961,12 +2961,11 @@ static int luaL_doZfile(lua_State *L, const char *filename)
 		FILE *F = fopen(fname, "rb");
 		if (!F)
 			luaL_error(L, "could not open lua file '%s'", fname);
-		r = z_readfile(F, &buf, &size, 1);
+		r = z_readfile(F, &buf, &size, 0);
 		fclose(F);
 		if (r != Z_OK)
 			luaL_error(L, "could not unzip lua file '%s'", fname);
-		buf[size] = 0;
-		r = luaL_dostring(L, buf);
+		r = luaL_loadbuffer(L, buf, size, fname);
 		free(buf);
 		return r;
 	}
