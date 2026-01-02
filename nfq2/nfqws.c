@@ -683,11 +683,6 @@ static int win_main()
 				DLOG("windivert: passing impostor packet\n");
 				verdict = VERDICT_PASS;
 			}
-			else if (wa.Loopback)
-			{
-				DLOG("windivert: passing loopback packet\n");
-				verdict = VERDICT_PASS;
-			}
 			else
 			{
 				mark = 0;

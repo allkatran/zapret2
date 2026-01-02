@@ -1492,48 +1492,63 @@ static void udp_standard_protocol_probe(const uint8_t *data_payload, size_t len_
 	protocol_probe(testers, sizeof(testers) / sizeof(*testers), data_payload, len_payload, ctrack, l7proto, l7payload);
 }
 
+static const uint8_t *dns_extract_name(const uint8_t *a, const uint8_t *b, const uint8_t *e, uint8_t *name, size_t name_size)
+{
+	size_t nl, off;
+	const uint8_t *p;
+	bool bptr = (*a & 0xC0)==0xC0;
+
+	if (bptr)
+	{
+		// name pointer
+		off = (*a & 0x3F)<<8 | a[1];
+		p = b + off;
+	}
+	else
+		// real name
+		p = a;
+
+	if (p>=e) return NULL;
+	for (nl=0; *p ;)
+	{
+		if ((p+*p+1)>=e || (*p+1)>=(name_size-nl)) return NULL;
+		if (nl)	name[nl++] = '.';
+		memcpy(name + nl, p + 1, *p);
+		nl += *p;
+		p += *p + 1;
+	}
+	name[nl] = 0;
+	return bptr ? a+2 : p+1;
+}
 static bool feed_dns_response(const uint8_t *a, size_t len)
 {
 	if (!params.cache_hostname) return true;
 
 	// check of minimum header length and response flag
 	uint16_t k, off, dlen, qcount = a[4]<<8 | a[5], acount = a[6]<<8 | a[7];
-	char s_ip[40], name[256];
-	const uint8_t *b = a, *p, *e;
+	char s_ip[40];
+	const uint8_t *b = a, *p;
+	const uint8_t *e = b + len;
 	size_t nl;
+	char name[256] = "";
 
 	if (len<12 || !(a[2]&0x80)) return false;
 	a+=12; len-=12;
 	for(k=0;k<qcount;k++)
 	{
-		while (len && *a)
-		{
-			if ((*a+1)>len) return false;
-			// skip to next label
-			len -= *a+1; a += *a+1;
-		}
-		if (len<5) return false;
-		// skip zero length label, type, class
-		a+=5; len-=5;
+		// remember original query name
+		if (!(p = dns_extract_name(a, b, e, name, sizeof(name)))) return false;
+		len -= p-a;
+		// must be A or AAAA query. others are not interesting
+		if ((len<4) || p[0] || p[1]!=1 && p[1]!=28 || p[2] || p[3]!=1) return false;
+		// skip type, class
+		a=p+4; len-=4;
 	}
+	if (!*name) return false;
 	for(k=0;k<acount;k++)
 	{
 		// 11 higher bits indicate pointer
 		if (len<12 || (*a & 0xC0)!=0xC0) return false;
-
-		off = (*a & 0x3F)<<8 | a[1];
-		e = a + len;
-		p = b + off;
-		if (p >= e) return false;
-		for (nl=0; *p ;)
-		{
-			if ((p+*p+1)>=e || (*p+1)>=(sizeof(name)-nl)) return false;
-			if (nl)	name[nl++] = '.';
-			memcpy(name+nl, p+1, *p);
-			nl += *p;
-			p += *p + 1;
-		}
-		name[nl] = 0;
 
 		dlen = a[10]<<8 | a[11];
 		if (len<(dlen+12)) return false;
@@ -1544,16 +1559,14 @@ static bool feed_dns_response(const uint8_t *a, size_t len)
 				case 1: // A
 					if (dlen!=4) break;
 					if (params.debug && inet_ntop(AF_INET, a+12, s_ip, sizeof(s_ip)))
-						DLOG("DNS response for '%s' : %s\n", name, s_ip);
-					if (ipcache_put_hostname((struct in_addr *)(a+12), NULL, name, false))
-						DLOG("ipcache updated\n");
+						DLOG("DNS response : %s\n", s_ip);
+					ipcache_put_hostname((struct in_addr *)(a+12), NULL, name, false);
 					break;
 				case 28: // AAAA
 					if (dlen!=16) break;
 					if (params.debug && inet_ntop(AF_INET6, a+12, s_ip, sizeof(s_ip)))
-						DLOG("DNS response for '%s' : %s\n", name, s_ip);
-					if (ipcache_put_hostname(NULL, (struct in6_addr *)(a+12), name, false))
-						DLOG("ipcache updated\n");
+						DLOG("DNS response : %s\n", s_ip);
+					ipcache_put_hostname(NULL, (struct in6_addr *)(a+12), name, false);
 					break;
 			}
 		}
