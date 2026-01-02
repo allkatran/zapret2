@@ -1543,23 +1543,17 @@ static bool feed_dns_response(const uint8_t *a, size_t len)
 			{
 				case 1: // A
 					if (dlen!=4) break;
-					if (params.debug)
-					{
-						if (inet_ntop(AF_INET, a+12, s_ip, sizeof(s_ip)))
-							DLOG("DNS response for '%s' : %s\n", name, s_ip);
-						if (ipcache_put_hostname((struct in_addr *)(a+12), NULL, name, false))
-							DLOG("ipcache updated\n");
-					}
+					if (params.debug && inet_ntop(AF_INET, a+12, s_ip, sizeof(s_ip)))
+						DLOG("DNS response for '%s' : %s\n", name, s_ip);
+					if (ipcache_put_hostname((struct in_addr *)(a+12), NULL, name, false))
+						DLOG("ipcache updated\n");
 					break;
 				case 28: // AAAA
 					if (dlen!=16) break;
-					if (params.debug)
-					{
-						if (inet_ntop(AF_INET6, a+12, s_ip, sizeof(s_ip)))
-							DLOG("DNS response for '%s' : %s\n", name, s_ip);
-						if (ipcache_put_hostname(NULL, (struct in6_addr *)(a+12), name, false))
-							DLOG("ipcache updated\n");
-					}
+					if (params.debug && inet_ntop(AF_INET6, a+12, s_ip, sizeof(s_ip)))
+						DLOG("DNS response for '%s' : %s\n", name, s_ip);
+					if (ipcache_put_hostname(NULL, (struct in6_addr *)(a+12), name, false))
+						DLOG("ipcache updated\n");
 					break;
 			}
 		}
