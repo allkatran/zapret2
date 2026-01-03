@@ -18,6 +18,18 @@ nft_list_table()
 	nft -t list table inet $ZAPRET_NFT_TABLE
 }
 
+nft_add_chain()
+{
+	# $1 - chain
+	# $2 - params
+	nft add chain inet $ZAPRET_NFT_TABLE $1 "{ $2 }"
+}
+nft_delete_chain()
+{
+	# $1 - chain
+	nft delete chain inet $ZAPRET_NFT_TABLE $1
+}
+
 nft_create_set()
 {
 	# $1 - set name

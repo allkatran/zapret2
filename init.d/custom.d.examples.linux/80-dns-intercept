@@ -1,0 +1,47 @@
+# this custom script feeds dns response data to main nfqws2 instance
+
+zapret_custom_firewall()
+{
+	# $1 - 1 - run, 0 - stop
+	local filt="-p udp --sport 53"
+	local jump="-j NFQUEUE --queue-num $QNUM --queue-bypass"
+	local chain lan lanifs
+
+	get_lanif lanifs
+
+	# router
+	for lan in $lanifs; do
+		[ "$DISABLE_IPV4" = 1 ] || ipt_add_del $1 FORWARD -o $lan $filt $jump
+		[ "$DISABLE_IPV6" = 1 ] || ipt6_add_del $1 FORWARD -o $lan $filt $jump
+	done
+	# dns client server
+	for chain in INPUT OUTPUT ; do
+		[ "$DISABLE_IPV4" = 1 ] || ipt_add_del $1 $chain $filt $jump
+		[ "$DISABLE_IPV6" = 1 ] || ipt6_add_del $1 $chain $filt $jump
+	done
+}
+
+zapret_custom_firewall_nft()
+{
+	# stop logic is not required
+
+	# dns client
+	nft_add_chain forward_dns_feed "type filter hook forward priority mangle;"
+	nft_add_rule forward_dns_feed oifname @lanif udp sport 53 queue num $QNUM bypass
+
+	# router
+	nft_add_chain input_dns_feed "type filter hook input priority mangle;"
+	nft_add_rule input_dns_feed udp sport 53 queue num $QNUM bypass
+
+	# dns server
+	nft_add_chain output_dns_feed "type filter hook output priority mangle;"
+	nft_add_rule output_dns_feed udp sport 53 queue num $QNUM bypass
+}
+
+zapret_custom_firewall_nft_flush()
+{
+	local chain
+	for chain in forward_dns_feed input_dns_feed output_dns_feed; do
+		nft_delete_chain $chain 2>/dev/null
+	done
+}

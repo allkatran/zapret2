@@ -157,3 +157,6 @@ v0.8.1
 * nfqws2: do not start if NFQWS2_COMPAT_VER unexpected
 * nfqws2: cache dns response IP addresses if --ipcache-hostname enabled
 * winws2: remove hardcoded filter for loopback
+* init.d: ressurect @lanif in nft scheme
+* init.d: fix broken @wanif/@wanif6 fill in sysv nft scheme
+* init.d: 80-dns-intercept
