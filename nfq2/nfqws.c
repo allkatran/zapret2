@@ -1253,7 +1253,7 @@ static bool wf_make_pf(char *opt, const char *l4, const char *portname, char *bu
 // HTTP/1.? 30(2|7)
 #define DIVERT_HTTP_REDIRECT "tcp.PayloadLength>=12 and tcp.Payload32[0]==0x48545450 and tcp.Payload16[2]==0x2F31 and tcp.Payload[6]==0x2E and tcp.Payload16[4]==0x2033 and tcp.Payload[10]==0x30 and (tcp.Payload[11]==0x32 or tcp.Payload[11]==0x37)"
 
-#define DIVERT_PROLOG "!impostor and !loopback"
+#define DIVERT_PROLOG "!impostor"
 
 static bool wf_make_filter(
 	char *wf, size_t len,
@@ -1264,12 +1264,14 @@ static bool wf_make_filter(
 	const char *pf_tcp_src_in, const char *pf_tcp_dst_in,
 	const char *pf_udp_src_in, const char *pf_udp_dst_out,
 	const struct str_list_head *wf_raw_part,
-	bool bFilterOutLAN)
+	bool bFilterOutLAN, bool bFilterOutLoopback)
 {
 	struct str_list *wfpart;
 	bool bHaveTCP = *pf_tcp_src_in || *pf_tcp_dst_out;
 
 	snprintf(wf, len, "%s", DIVERT_PROLOG);
+	if (bFilterOutLoopback)
+		snprintf(wf + strlen(wf), len - strlen(wf), " and !loopback");
 	if (IfIdx)
 		snprintf(wf + strlen(wf), len - strlen(wf), " and ifIdx=%u and subIfIdx=%u", IfIdx, SubIfIdx);
 	if (ipv4 ^ ipv6)
@@ -1393,6 +1395,7 @@ static void exithelp(void)
 		" --wf-tcp-empty=[0|1]\t\t\t\t\t; enable processing of empty tcp packets without flags SYN,RST,FIN (default : 0)\n"
 		" --wf-raw-part=<filter>|@<filename>\t\t\t; partial raw windivert filter string or filename\n"
 		" --wf-filter-lan=0|1\t\t\t\t\t; add excluding filter for non-global IP (default : 1)\n"
+		" --wf-filter-loopback=0|1\t\t\t\t; add excluding filter for loopback (default : 1)\n"
 		" --wf-raw=<filter>|@<filename>\t\t\t\t; full raw windivert filter string or filename. replaces --wf-tcp,--wf-udp,--wf-raw-part\n"
 		" --wf-save=<filename>\t\t\t\t\t; save windivert filter string to a file and exit\n"
 		"\nLOGICAL NETWORK FILTER:\n"
@@ -1586,6 +1589,7 @@ enum opt_indices {
 	IDX_WF_RAW,
 	IDX_WF_RAW_PART,
 	IDX_WF_FILTER_LAN,
+	IDX_WF_FILTER_LOOPBACK,
 	IDX_WF_SAVE,
 	IDX_SSID_FILTER,
 	IDX_NLM_FILTER,
@@ -1675,6 +1679,7 @@ static const struct option long_options[] = {
 	[IDX_WF_RAW] = {"wf-raw", required_argument, 0, 0},
 	[IDX_WF_RAW_PART] = {"wf-raw-part", required_argument, 0, 0},
 	[IDX_WF_FILTER_LAN] = {"wf-filter-lan", required_argument, 0, 0},
+	[IDX_WF_FILTER_LOOPBACK] = {"wf-filter-loopback", required_argument, 0, 0},
 	[IDX_WF_SAVE] = {"wf-save", required_argument, 0, 0},
 	[IDX_SSID_FILTER] = {"ssid-filter", required_argument, 0, 0},
 	[IDX_NLM_FILTER] = {"nlm-filter", required_argument, 0, 0},
@@ -1718,7 +1723,7 @@ int main(int argc, char **argv)
 	struct packet_range range_in = PACKET_RANGE_NEVER, range_out = PACKET_RANGE_ALWAYS;
 #ifdef __CYGWIN__
 	char wf_save_file[256]="";
-	bool wf_ipv4 = true, wf_ipv6 = true, wf_filter_lan = true, wf_tcp_empty = false;
+	bool wf_ipv4 = true, wf_ipv6 = true, wf_filter_lan = true, wf_filter_loopback = true, wf_tcp_empty = false;
 	unsigned int IfIdx = 0, SubIfIdx = 0;
 	unsigned int hash_wf_tcp_in = 0, hash_wf_udp_in = 0, hash_wf_tcp_out = 0, hash_wf_udp_out = 0, hash_wf_raw = 0, hash_wf_raw_part = 0, hash_ssid_filter = 0, hash_nlm_filter = 0;
 #endif
@@ -2429,6 +2434,9 @@ int main(int argc, char **argv)
 		case IDX_WF_FILTER_LAN:
 			wf_filter_lan = !!atoi(optarg);
 			break;
+		case IDX_WF_FILTER_LOOPBACK:
+			wf_filter_loopback = !!atoi(optarg);
+			break;
 		case IDX_WF_SAVE:
 			strncpy(wf_save_file, optarg, sizeof(wf_save_file));
 			wf_save_file[sizeof(wf_save_file) - 1] = '\0';
@@ -2597,13 +2605,13 @@ int main(int argc, char **argv)
 				params.wf_pf_tcp_dst_out, params.wf_pf_tcp_src_out,
 				params.wf_pf_tcp_dst_in, params.wf_pf_tcp_src_in,
 				params.wf_pf_udp_dst_in, params.wf_pf_udp_src_out,
-				&params.wf_raw_part, wf_filter_lan) :
+				&params.wf_raw_part, wf_filter_lan, wf_filter_loopback) :
 			wf_make_filter(params.windivert_filter, WINDIVERT_MAX, IfIdx, SubIfIdx, wf_ipv4, wf_ipv6,
 				wf_tcp_empty,
 				params.wf_pf_tcp_src_out, params.wf_pf_tcp_dst_out,
 				params.wf_pf_tcp_src_in, params.wf_pf_tcp_dst_in,
 				params.wf_pf_udp_src_in, params.wf_pf_udp_dst_out,
-				&params.wf_raw_part, wf_filter_lan);
+				&params.wf_raw_part, wf_filter_lan, wf_filter_loopback);
 		cleanup_windivert_portfilters(&params);
 		if (!b)
 		{

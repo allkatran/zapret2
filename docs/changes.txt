@@ -160,3 +160,4 @@ v0.8.1
 * init.d: ressurect @lanif in nft scheme
 * init.d: fix broken @wanif/@wanif6 fill in sysv nft scheme
 * init.d: 80-dns-intercept
+* winws2: --wf-filter-loopback
