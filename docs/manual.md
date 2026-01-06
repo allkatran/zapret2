@@ -1943,7 +1943,7 @@ function gunzip_inflate(zstream, compressed_data, expected_uncompressed_chunk_si
 ```
 function gzip_init(windowBits, level, memlevel)
 function gzip_end(zstream)
-function gzip_inflate(zstream, uncompressed_data, expected_compressed_chunk_size)
+function gzip_deflate(zstream, uncompressed_data, expected_compressed_chunk_size)
 ```
 
 * gzip_init создает и возвращает контекст gzip потока для последующих вызовов других функций. Значение windowBits см. в документации по zlib (по умолчанию 31). level - уровень сжатия от 1 до 9 (по умолчанию 9), memlevel - допустимый уровень использования памяти от 1 до 8 (по умолчанию 8).
