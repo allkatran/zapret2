@@ -2596,6 +2596,30 @@ struct userdata_zs
 	bool valid, inflate;
 	z_stream zs;
 };
+static int lua_cfunc_zstream_gc(lua_State *L)
+{
+	struct userdata_zs *uzs = (struct userdata_zs *)luaL_checkudata(L, 1, "userdata_zstream");
+	if (uzs->valid)
+	{
+		if (uzs->inflate)
+			inflateEnd(&uzs->zs);
+		else
+			deflateEnd(&uzs->zs);
+		uzs->valid = false;
+	}
+	return 0;
+}
+static void lua_mt_init_zstream()
+{
+	LUA_STACK_GUARD_ENTER(params.L)
+
+	luaL_newmetatable(params.L, "userdata_zstream");
+	lua_pushcfunction(params.L, lua_cfunc_zstream_gc);
+	lua_setfield(params.L, -2, "__gc");
+	lua_pop(params.L,1);
+
+	LUA_STACK_GUARD_LEAVE(params.L, 0)
+}
 static struct userdata_zs *lua_uzs(int idx, bool bInflate)
 {
 	struct userdata_zs *uzs = (struct userdata_zs *)luaL_checkudata(params.L, idx, "userdata_zstream");
@@ -2620,7 +2644,7 @@ static int luacall_gunzip_init(lua_State *L)
 	{
 		uzs->inflate = true;
 		uzs->valid = true;
-		luaL_newmetatable(L, "userdata_zstream");
+		luaL_getmetatable(L, "userdata_zstream");
 		lua_setmetatable(L, -2);
 	}
 	else
@@ -2888,6 +2912,8 @@ static bool lua_basic_init()
 		}
 	}
 	lua_settop(params.L, 0);
+
+	lua_mt_init_zstream();
 
 	return true;
 }
