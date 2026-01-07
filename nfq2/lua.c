@@ -2686,13 +2686,16 @@ static int luacall_gunzip_inflate(lua_State *L)
 	uzs->zs.next_in = (z_const Bytef*)luaL_checklstring(L,2,&l);
 	uzs->zs.avail_in = (uInt)l;
 	size_t bufchunk = argc>=3 ? luaL_checkinteger(L,3) : l*4;
+	size_t increment = bufchunk / 2;
+	if (increment < Z_INFL_BUF_INCREMENT) increment = Z_INFL_BUF_INCREMENT;
+
 	do
 	{
 		if ((bufsize - size) < BUFMIN)
 		{
 			if (buf)
 			{
-				bufsize += Z_INFL_BUF_INCREMENT;
+				bufsize += increment;
 				newbuf = realloc(buf, bufsize);
 			}
 			else
@@ -2797,6 +2800,8 @@ static int luacall_gzip_deflate(lua_State *L)
 		uzs->zs.avail_in = (uInt)l;
 	}
 	size_t bufchunk = BUFMIN + (argc>=3 ? luaL_checkinteger(L,3) : l/2);
+	size_t increment = bufchunk / 2;
+	if (increment < Z_DEFL_BUF_INCREMENT) increment = Z_DEFL_BUF_INCREMENT;
 
 	do
 	{
@@ -2804,7 +2809,7 @@ static int luacall_gzip_deflate(lua_State *L)
 		{
 			if (buf)
 			{
-				bufsize += Z_DEFL_BUF_INCREMENT;
+				bufsize += increment;
 				newbuf = realloc(buf, bufsize);
 			}
 			else
